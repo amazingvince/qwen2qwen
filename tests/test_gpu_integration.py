@@ -445,12 +445,12 @@ class TestAutoregressiveGenerationGPU:
             assert output1.past_key_values is not None
             assert len(output1.past_key_values) == small_config.num_hidden_layers
 
-            # Each layer has ((dec_k, dec_v), (enc_k, enc_v))
+            # Each layer has (dec_k, dec_v, enc_k, enc_v) - flat format
             for layer_cache in output1.past_key_values:
-                dec_cache, enc_cache = layer_cache
+                dec_k, dec_v, enc_k, enc_v = layer_cache
                 # Decoder cache: [batch, num_kv_heads, seq_len, head_dim]
-                assert dec_cache[0].shape[2] == 1  # One decoder token
-                assert enc_cache[0].shape[2] == enc_len  # All encoder tokens
+                assert dec_k.shape[2] == 1  # One decoder token
+                assert enc_k.shape[2] == enc_len  # All encoder tokens
 
             # Second step
             next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
@@ -463,9 +463,9 @@ class TestAutoregressiveGenerationGPU:
 
             # Decoder cache should grow, encoder cache stays same
             for layer_cache in output2.past_key_values:
-                dec_cache, enc_cache = layer_cache
-                assert dec_cache[0].shape[2] == 2  # Two decoder tokens now
-                assert enc_cache[0].shape[2] == enc_len  # Still same encoder tokens
+                dec_k, dec_v, enc_k, enc_v = layer_cache
+                assert dec_k.shape[2] == 2  # Two decoder tokens now
+                assert enc_k.shape[2] == enc_len  # Still same encoder tokens
 
     def test_generation_determinism_gpu(self, encoder_decoder_gpu, small_config):
         """Test reproducible generation with fixed seed."""
@@ -572,6 +572,44 @@ class TestAutoregressiveGenerationGPU:
                 next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
                 decoder_input_ids = next_token
                 past_key_values = decoder_output.past_key_values
+
+    def test_long_generation_beyond_encoder_length(self, small_config):
+        """Test generation can exceed encoder sequence length (RoPE cache bug check)."""
+        encoder = Qwen3Encoder(small_config).cuda().eval()
+        decoder = Qwen3Decoder(small_config).cuda().eval()
+
+        batch_size = 1
+        enc_len = 16  # Short encoder sequence
+        num_steps = 50  # Generate more tokens than enc_len
+
+        encoder_input_ids = torch.randint(0, small_config.vocab_size - 10, (batch_size, enc_len)).cuda()
+
+        with torch.no_grad():
+            encoder_output = encoder(encoder_input_ids)
+
+            decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.long, device="cuda")
+            past_key_values = None
+
+            for step in range(num_steps):
+                decoder_output = decoder(
+                    input_ids=decoder_input_ids,
+                    encoder_hidden_states=encoder_output.last_hidden_state,
+                    past_key_values=past_key_values,
+                    use_cache=True,
+                )
+
+                # Check no NaN/Inf
+                assert not torch.isnan(decoder_output.last_hidden_state).any(), f"NaN at step {step}"
+                assert not torch.isinf(decoder_output.last_hidden_state).any(), f"Inf at step {step}"
+
+                next_token = torch.randint(0, small_config.vocab_size - 10, (batch_size, 1), device="cuda")
+                decoder_input_ids = next_token
+                past_key_values = decoder_output.past_key_values
+
+        # Verify we generated beyond encoder length
+        # Flat cache format: (dec_k, dec_v, enc_k, enc_v) per layer
+        assert past_key_values[0][0].shape[2] == num_steps  # decoder cache grew
+        assert past_key_values[0][2].shape[2] == enc_len  # encoder cache unchanged
 
     def test_batch_vs_incremental_consistency_gpu(self, encoder_decoder_gpu, small_config):
         """Verify batch decoding matches incremental decoding on GPU."""

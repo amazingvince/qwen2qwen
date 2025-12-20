@@ -176,8 +176,13 @@ class Qwen3RotaryEmbedding(nn.Module):
         """
         seq_len = x.shape[2]
 
-        # Update cache if needed
-        self._update_cos_sin_cache(seq_len, x.device, x.dtype)
+        # Update cache if needed - must cover max position_id, not just seq_len
+        if position_ids is not None:
+            max_pos = int(position_ids.max()) + 1  # +1 because positions are 0-indexed
+            cache_len = max(seq_len, max_pos)
+        else:
+            cache_len = seq_len
+        self._update_cos_sin_cache(cache_len, x.device, x.dtype)
 
         if position_ids is not None:
             # Index into cached values using position_ids
@@ -782,3 +787,37 @@ class Qwen3EncoderModel(Qwen3EncoderPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+
+    @classmethod
+    def from_seq2seq(cls, seq2seq_model: "Qwen3ForSeq2SeqLM") -> "Qwen3EncoderModel":
+        """
+        Extract encoder from a trained Seq2Seq model.
+
+        This is useful for extracting the trained encoder after UL2 training
+        to use as a standalone embedding model.
+
+        Args:
+            seq2seq_model: Trained Qwen3ForSeq2SeqLM model.
+
+        Returns:
+            Encoder-only model with weights copied from the seq2seq model.
+
+        Example:
+            ```python
+            # After training
+            seq2seq = Qwen3ForSeq2SeqLM.from_pretrained("path/to/trained")
+            encoder = Qwen3EncoderModel.from_seq2seq(seq2seq)
+            encoder.save_pretrained("path/to/encoder")
+            ```
+        """
+        # Import here to avoid circular imports
+        from .modeling_qwen3_encdec import Qwen3ForSeq2SeqLM as Seq2SeqLM
+
+        if not isinstance(seq2seq_model, Seq2SeqLM):
+            raise TypeError(
+                f"Expected Qwen3ForSeq2SeqLM, got {type(seq2seq_model).__name__}"
+            )
+
+        encoder_model = cls(seq2seq_model.config)
+        encoder_model.model.load_state_dict(seq2seq_model.model.encoder.state_dict())
+        return encoder_model

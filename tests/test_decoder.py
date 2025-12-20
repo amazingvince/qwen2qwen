@@ -120,15 +120,13 @@ class TestQwen3MergedAttention:
         )
 
         assert cache is not None
-        # Cache structure: ((dec_k, dec_v), (enc_k, enc_v))
-        assert len(cache) == 2
-        assert len(cache[0]) == 2  # decoder KV
-        assert len(cache[1]) == 2  # encoder KV
+        # Cache structure: (dec_k, dec_v, enc_k, enc_v) - flat format
+        assert len(cache) == 4
 
         # Decoder cache should have 1 token
-        assert cache[0][0].shape[2] == 1
+        assert cache[0].shape[2] == 1  # dec_k
         # Encoder cache should have 10 tokens
-        assert cache[1][0].shape[2] == 10
+        assert cache[2].shape[2] == 10  # enc_k
 
     def test_kv_cache_incremental(self, small_config, encoder_hidden):
         """Test KV cache grows during incremental decoding."""
@@ -151,10 +149,10 @@ class TestQwen3MergedAttention:
                 use_cache=True,
             )
 
-        # Decoder cache should grow
-        assert cache_2[0][0].shape[2] == 2
+        # Decoder cache should grow (flat format: dec_k, dec_v, enc_k, enc_v)
+        assert cache_2[0].shape[2] == 2  # dec_k grew to 2 tokens
         # Encoder cache should stay same
-        assert cache_2[1][0].shape[2] == 10
+        assert cache_2[2].shape[2] == 10  # enc_k unchanged
 
     def test_encoder_padding_mask(self, small_config):
         """Test encoder padding mask is applied."""

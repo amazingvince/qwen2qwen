@@ -22,6 +22,12 @@ from .modeling_qwen3_encoder import (
     repeat_kv,
     rotate_half,
 )
+from .modeling_qwen3_encdec import (
+    Qwen3ForSeq2SeqLM,
+    Qwen3Seq2SeqModel,
+    Qwen3Seq2SeqModelOutput,
+    Qwen3Seq2SeqPreTrainedModel,
+)
 from .tokenization_qwen3_encdec import (
     SENTINEL_TOKEN_TEMPLATE,
     Qwen3EncoderDecoderTokenizer,
@@ -39,6 +45,11 @@ __all__ = [
     "SENTINEL_TOKEN_TEMPLATE",
     "create_sentinel_sequence",
     "apply_sentinel_corruption",
+    # Seq2Seq - Models
+    "Qwen3ForSeq2SeqLM",
+    "Qwen3Seq2SeqModel",
+    "Qwen3Seq2SeqPreTrainedModel",
+    "Qwen3Seq2SeqModelOutput",
     # Encoder - Models
     "Qwen3Encoder",
     "Qwen3EncoderModel",

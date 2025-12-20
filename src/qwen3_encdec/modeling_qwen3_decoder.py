@@ -160,8 +160,9 @@ class Qwen3MergedAttention(nn.Module):
         # Create position IDs if not provided
         if decoder_position_ids is None:
             # For incremental decoding, past_key_value tells us the offset
+            # Cache format: (dec_k, dec_v, enc_k, enc_v)
             if past_key_value is not None:
-                past_dec_len = past_key_value[0][0].shape[2]
+                past_dec_len = past_key_value[0].shape[2]
                 decoder_position_ids = torch.arange(
                     past_dec_len, past_dec_len + dec_len, device=device
                 ).unsqueeze(0).expand(batch_size, -1)
@@ -191,11 +192,12 @@ class Qwen3MergedAttention(nn.Module):
         ).transpose(1, 2)
 
         # For encoder portion (only compute if not cached)
-        encoder_kv_cached = past_key_value is not None and past_key_value[1] is not None
+        # Cache format: (dec_k, dec_v, enc_k, enc_v)
+        encoder_kv_cached = past_key_value is not None and len(past_key_value) > 2 and past_key_value[2] is not None
         if encoder_kv_cached:
             # Encoder KV is cached (already has QK-Norm applied)
-            enc_key_states = past_key_value[1][0]
-            enc_value_states = past_key_value[1][1]
+            enc_key_states = past_key_value[2]
+            enc_value_states = past_key_value[3]
         else:
             # Compute encoder KV
             enc_key_states = self.k_proj(encoder_hidden_states)
@@ -228,17 +230,21 @@ class Qwen3MergedAttention(nn.Module):
             enc_key_states = (enc_key_states * enc_cos) + (self._rotate_half(enc_key_states) * enc_sin)
 
         # === Handle KV Cache ===
+        # Cache format: (dec_k, dec_v, enc_k, enc_v)
         if past_key_value is not None:
             # Append new decoder KV to cached decoder KV
-            past_dec_key, past_dec_value = past_key_value[0]
+            past_dec_key = past_key_value[0]
+            past_dec_value = past_key_value[1]
             dec_key_states = torch.cat([past_dec_key, dec_key_states], dim=2)
             dec_value_states = torch.cat([past_dec_value, dec_value_states], dim=2)
 
         if use_cache:
-            # Cache structure: ((dec_k, dec_v), (enc_k, enc_v))
+            # Cache structure: (dec_k, dec_v, enc_k, enc_v) - flat format for HF compatibility
             past_key_value = (
-                (dec_key_states, dec_value_states),
-                (enc_key_states, enc_value_states),
+                dec_key_states,
+                dec_value_states,
+                enc_key_states,
+                enc_value_states,
             )
 
         # Get actual lengths after caching
@@ -608,9 +614,19 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
 
         # Prepare position IDs
         if position_ids is None:
-            if past_key_values is not None and past_key_values[0] is not None:
+            # Cache format: (dec_k, dec_v, enc_k, enc_v) per layer
+            # Check if we have a valid cache with actual tensors (not just empty cache wrapper)
+            has_valid_cache = (
+                past_key_values is not None
+                and len(past_key_values) > 0
+                and past_key_values[0] is not None
+                and len(past_key_values[0]) > 0
+                and past_key_values[0][0] is not None  # dec_k tensor exists
+            )
+            if has_valid_cache:
                 # Incremental decoding: offset by cached length
-                past_length = past_key_values[0][0][0].shape[2]
+                # past_key_values[0][0] is the decoder key for the first layer
+                past_length = past_key_values[0][0].shape[2]
                 position_ids = torch.arange(
                     past_length, past_length + dec_len, device=device
                 ).unsqueeze(0).expand(batch_size, -1)
@@ -634,7 +650,17 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
-            past_key_value = past_key_values[idx] if past_key_values is not None else None
+            # Get layer cache - handle both tuple and HF EncoderDecoderCache
+            # EncoderDecoderCache may return (None, None, None, None) for empty cache
+            if past_key_values is not None:
+                layer_cache = past_key_values[idx]
+                # Check if it's an empty cache (all Nones)
+                if layer_cache is not None and len(layer_cache) > 0 and layer_cache[0] is None:
+                    past_key_value = None
+                else:
+                    past_key_value = layer_cache
+            else:
+                past_key_value = None
 
             if self.gradient_checkpointing and self.training:
                 hidden_states, attn_weights, present_key_value = self._gradient_checkpointing_func(
