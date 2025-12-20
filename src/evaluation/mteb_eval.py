@@ -76,12 +76,7 @@ class Qwen3EncoderWrapper:
     """
     Wrapper to make Qwen3Encoder compatible with MTEB evaluation.
 
-    MTEB expects a model with an `encode` method that takes:
-    - sentences: List[str]
-    - batch_size: int
-    - show_progress_bar: bool
-
-    And returns: np.ndarray of shape (num_sentences, embedding_dim)
+    Implements the MTEB v2 EncoderProtocol interface.
     """
 
     def __init__(
@@ -96,6 +91,7 @@ class Qwen3EncoderWrapper:
         self.max_seq_length = max_seq_length
         self.normalize_embeddings = normalize_embeddings
         self.pooling_mode = pooling_mode
+        self.model_path = model_path
 
         # Load model and tokenizer
         self._load_model(model_path)
@@ -126,30 +122,53 @@ class Qwen3EncoderWrapper:
             self.use_sentence_transformers = False
             logger.info(f"Loaded model directly from {model_path}")
 
+    @property
+    def mteb_model_meta(self):
+        """Return model metadata for MTEB."""
+        try:
+            from mteb.models.wrapper import ModelMeta
+            return ModelMeta(
+                name="qwen3-encoder",
+                revision=None,
+                release_date=None,
+                languages=None,
+            )
+        except ImportError:
+            return None
+
     def encode(
         self,
-        sentences: List[str],
+        sentences_or_dataloader,
+        *,
         batch_size: int = 32,
         show_progress_bar: bool = True,
         convert_to_numpy: bool = True,
         normalize_embeddings: Optional[bool] = None,
+        task_metadata=None,
+        hf_split: str = None,
+        hf_subset: str = None,
+        prompt_type=None,
         **kwargs,
     ) -> Union[np.ndarray, torch.Tensor]:
         """
         Encode sentences to embeddings.
 
-        Args:
-            sentences: List of sentences to encode
-            batch_size: Batch size for encoding
-            show_progress_bar: Whether to show progress bar
-            convert_to_numpy: Whether to convert to numpy array
-            normalize_embeddings: Whether to L2 normalize embeddings
-
-        Returns:
-            Embeddings as numpy array or torch tensor
+        Supports both MTEB v1 style (list of sentences) and v2 style (DataLoader).
         """
         if normalize_embeddings is None:
             normalize_embeddings = self.normalize_embeddings
+
+        # Handle MTEB v2 DataLoader input
+        from torch.utils.data import DataLoader
+        if isinstance(sentences_or_dataloader, DataLoader):
+            return self._encode_dataloader(
+                sentences_or_dataloader,
+                normalize_embeddings=normalize_embeddings,
+                **kwargs
+            )
+
+        # MTEB v1 style: list of sentences
+        sentences = sentences_or_dataloader
 
         if self.use_sentence_transformers:
             return self.model.encode(
@@ -161,6 +180,78 @@ class Qwen3EncoderWrapper:
             )
 
         # Manual encoding
+        return self._encode_sentences(
+            sentences,
+            batch_size=batch_size,
+            show_progress_bar=show_progress_bar,
+            convert_to_numpy=convert_to_numpy,
+            normalize_embeddings=normalize_embeddings,
+        )
+
+    def _encode_dataloader(
+        self,
+        dataloader,
+        normalize_embeddings: bool = True,
+        **kwargs,
+    ) -> np.ndarray:
+        """Encode from MTEB v2 DataLoader."""
+        all_embeddings = []
+
+        with torch.no_grad():
+            for batch in tqdm(dataloader, desc="Encoding"):
+                # Extract sentences from batch
+                if isinstance(batch, dict):
+                    sentences = batch.get("text", batch.get("sentence", []))
+                elif isinstance(batch, (list, tuple)):
+                    sentences = batch[0] if len(batch) > 0 else []
+                else:
+                    sentences = batch
+
+                if not sentences:
+                    continue
+
+                if self.use_sentence_transformers:
+                    embeddings = self.model.encode(
+                        sentences,
+                        convert_to_numpy=False,
+                        normalize_embeddings=normalize_embeddings,
+                        show_progress_bar=False,
+                    )
+                    if isinstance(embeddings, np.ndarray):
+                        embeddings = torch.from_numpy(embeddings)
+                else:
+                    inputs = self.tokenizer(
+                        sentences,
+                        padding=True,
+                        truncation=True,
+                        max_length=self.max_seq_length,
+                        return_tensors="pt",
+                    ).to(self.device)
+
+                    outputs = self.model(**inputs)
+                    embeddings = outputs.pooler_output
+
+                    if normalize_embeddings:
+                        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+
+                    embeddings = embeddings.cpu()
+
+                all_embeddings.append(embeddings)
+
+        if all_embeddings:
+            result = torch.cat(all_embeddings, dim=0)
+            return result.numpy()
+        return np.array([])
+
+    def _encode_sentences(
+        self,
+        sentences: List[str],
+        batch_size: int = 32,
+        show_progress_bar: bool = True,
+        convert_to_numpy: bool = True,
+        normalize_embeddings: bool = True,
+    ) -> Union[np.ndarray, torch.Tensor]:
+        """Encode a list of sentences."""
         all_embeddings = []
 
         iterator = range(0, len(sentences), batch_size)
@@ -173,7 +264,6 @@ class Qwen3EncoderWrapper:
             for start_idx in iterator:
                 batch = sentences[start_idx : start_idx + batch_size]
 
-                # Tokenize
                 inputs = self.tokenizer(
                     batch,
                     padding=True,
@@ -182,9 +272,8 @@ class Qwen3EncoderWrapper:
                     return_tensors="pt",
                 ).to(self.device)
 
-                # Forward pass
                 outputs = self.model(**inputs)
-                embeddings = outputs.pooler_output  # Shape: (batch_size, hidden_size)
+                embeddings = outputs.pooler_output
 
                 if normalize_embeddings:
                     embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
@@ -196,6 +285,30 @@ class Qwen3EncoderWrapper:
         if convert_to_numpy:
             return all_embeddings.numpy()
         return all_embeddings
+
+    def similarity(self, embeddings1, embeddings2):
+        """Compute cosine similarity matrix."""
+        if isinstance(embeddings1, np.ndarray):
+            embeddings1 = torch.from_numpy(embeddings1)
+        if isinstance(embeddings2, np.ndarray):
+            embeddings2 = torch.from_numpy(embeddings2)
+
+        embeddings1 = torch.nn.functional.normalize(embeddings1, p=2, dim=-1)
+        embeddings2 = torch.nn.functional.normalize(embeddings2, p=2, dim=-1)
+
+        return torch.mm(embeddings1, embeddings2.t())
+
+    def similarity_pairwise(self, embeddings1, embeddings2):
+        """Compute pairwise cosine similarity."""
+        if isinstance(embeddings1, np.ndarray):
+            embeddings1 = torch.from_numpy(embeddings1)
+        if isinstance(embeddings2, np.ndarray):
+            embeddings2 = torch.from_numpy(embeddings2)
+
+        embeddings1 = torch.nn.functional.normalize(embeddings1, p=2, dim=-1)
+        embeddings2 = torch.nn.functional.normalize(embeddings2, p=2, dim=-1)
+
+        return (embeddings1 * embeddings2).sum(dim=-1)
 
 
 class MTEBEvaluator:

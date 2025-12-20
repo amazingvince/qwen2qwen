@@ -288,6 +288,7 @@ class Qwen3StandaloneEncoderModel(PreTrainedModel):
             num_hidden_layers=config.num_hidden_layers,
             num_attention_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
+            head_dim=config.head_dim,  # Must pass explicitly for Qwen3-0.6B (128 != 1024//16)
             hidden_act=config.hidden_act,
             max_position_embeddings=config.max_position_embeddings,
             rms_norm_eps=config.rms_norm_eps,

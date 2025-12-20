@@ -217,4 +217,12 @@ logs/
 config.local.*
 *.local
 
+# Project-specific
 qwen3-encdec-initialized/
+output/
+extracted-encoder/
+eval_results/
+mteb_results/
+
+# Claude Code
+.claude/
