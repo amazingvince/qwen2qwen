@@ -72,9 +72,9 @@ Convert a pretrained Qwen3 model to encoder-decoder format:
 
 ```bash
 python scripts/initialize_model.py \
-    --qwen3_path Qwen/Qwen3-0.6B \
-    --output_path ./qwen3-encdec-initialized \
-    --num_sentinel_tokens 100 \
+    --qwen3-model Qwen/Qwen3-0.6B \
+    --output-dir ./qwen3-encdec-initialized \
+    --num-sentinel-tokens 100 \
     --verify
 ```
 

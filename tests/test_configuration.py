@@ -22,7 +22,7 @@ class TestQwen3EncoderDecoderConfigDefaults:
         assert config.num_hidden_layers == 28
         assert config.num_attention_heads == 16
         assert config.num_key_value_heads == 8
-        assert config.intermediate_size == 2816
+        assert config.intermediate_size == 3072  # Qwen3-0.6B uses 3072
         assert config.hidden_act == "silu"
 
         # Normalization

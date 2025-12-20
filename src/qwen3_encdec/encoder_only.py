@@ -62,17 +62,17 @@ class Qwen3EncoderConfig(PretrainedConfig):
 
     def __init__(
         self,
-        vocab_size: int = 152064,
+        vocab_size: int = 152036,
         hidden_size: int = 1024,
-        intermediate_size: int = 2816,
+        intermediate_size: int = 3072,
         num_hidden_layers: int = 28,
         num_attention_heads: int = 16,
         num_key_value_heads: int = 8,
-        head_dim: int = 64,
+        head_dim: int = 128,  # Qwen3-0.6B uses 128
         hidden_act: str = "silu",
-        max_position_embeddings: int = 40960,
+        max_position_embeddings: int = 32768,
         rms_norm_eps: float = 1e-6,
-        rope_theta: float = 1000000.0,
+        rope_theta: float = 10000.0,
         attention_dropout: float = 0.0,
         pad_token_id: int = 151643,
         pooling_mode: str = "mean",

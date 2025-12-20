@@ -93,7 +93,8 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
         num_hidden_layers: int = 28,
         num_attention_heads: int = 16,
         num_key_value_heads: int = 8,
-        intermediate_size: int = 2816,
+        head_dim: Optional[int] = None,  # If None, computed from hidden_size//num_heads
+        intermediate_size: int = 3072,  # Qwen3-0.6B uses 3072
         hidden_act: str = "silu",
         # Normalization
         rms_norm_eps: float = 1e-6,
@@ -127,6 +128,7 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
         self.num_key_value_heads = num_key_value_heads
+        self._head_dim = head_dim  # Store explicit head_dim
         self.intermediate_size = intermediate_size
         self.hidden_act = hidden_act
 
@@ -164,6 +166,8 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
     @property
     def head_dim(self) -> int:
         """Return the dimension of each attention head."""
+        if self._head_dim is not None:
+            return self._head_dim
         return self.hidden_size // self.num_attention_heads
 
     @property
@@ -293,6 +297,7 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
             "num_hidden_layers": qwen3_config.num_hidden_layers,
             "num_attention_heads": qwen3_config.num_attention_heads,
             "num_key_value_heads": qwen3_config.num_key_value_heads,
+            "head_dim": getattr(qwen3_config, "head_dim", None),  # Qwen3 may have explicit head_dim
             "intermediate_size": qwen3_config.intermediate_size,
             "hidden_act": qwen3_config.hidden_act,
             "rms_norm_eps": qwen3_config.rms_norm_eps,

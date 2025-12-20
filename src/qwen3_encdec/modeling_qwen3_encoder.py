@@ -386,9 +386,9 @@ class Qwen3EncoderAttention(nn.Module):
             )
             attn_weights = None
 
-        # Reshape back to [batch, seq_len, hidden_size]
+        # Reshape back to [batch, seq_len, num_heads * head_dim]
         attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.view(batch_size, seq_len, self.hidden_size)
+        attn_output = attn_output.view(batch_size, seq_len, self.num_heads * self.head_dim)
 
         # Output projection
         attn_output = self.o_proj(attn_output)
