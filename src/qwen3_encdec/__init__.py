@@ -1,6 +1,13 @@
 """Qwen3 Encoder-Decoder model implementation."""
 
 from .configuration_qwen3_encdec import Qwen3EncoderDecoderConfig
+from .modeling_qwen3_decoder import (
+    Qwen3Decoder,
+    Qwen3DecoderLayer,
+    Qwen3DecoderOutput,
+    Qwen3DecoderPreTrainedModel,
+    Qwen3MergedAttention,
+)
 from .modeling_qwen3_encoder import (
     Qwen3Encoder,
     Qwen3EncoderAttention,
@@ -47,4 +54,11 @@ __all__ = [
     "rotate_half",
     "apply_rotary_pos_emb",
     "repeat_kv",
+    # Decoder - Models
+    "Qwen3Decoder",
+    "Qwen3DecoderPreTrainedModel",
+    "Qwen3DecoderOutput",
+    # Decoder - Layers
+    "Qwen3DecoderLayer",
+    "Qwen3MergedAttention",
 ]
