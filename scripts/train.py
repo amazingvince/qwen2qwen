@@ -22,7 +22,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from data import UL2Config, UL2DataCollator
-from qwen3_encdec import Qwen3EncoderDecoderTokenizer
+from qwen3_encdec import Qwen3EncoderDecoderTokenizer, Qwen3ForSeq2SeqLM
 from qwen3_encdec.weight_initialization import initialize_from_qwen3
 from training import FullConfig, Qwen3EncoderDecoderTrainer
 
@@ -137,12 +137,27 @@ def main():
     # Save config copy
     config.to_yaml(str(output_path / "config.yaml"))
 
-    # Initialize model from Qwen3 checkpoint
-    logger.info(f"Initializing model from {config.model.model_name_or_path}...")
-    model = initialize_from_qwen3(
-        config.model.model_name_or_path,
-        num_sentinel_tokens=config.model.num_sentinel_tokens,
-    )
+    # Load or initialize model
+    model_path = Path(config.model.model_name_or_path)
+    config_file = model_path / "config.json" if model_path.exists() else None
+
+    # Check if this is already our encoder-decoder format
+    is_encdec = False
+    if config_file and config_file.exists():
+        import json
+        with open(config_file) as f:
+            model_config = json.load(f)
+        is_encdec = model_config.get("model_type") == "qwen3_encdec"
+
+    if is_encdec:
+        logger.info(f"Loading pre-initialized model from {config.model.model_name_or_path}...")
+        model = Qwen3ForSeq2SeqLM.from_pretrained(config.model.model_name_or_path)
+    else:
+        logger.info(f"Initializing model from Qwen3 checkpoint {config.model.model_name_or_path}...")
+        model = initialize_from_qwen3(
+            config.model.model_name_or_path,
+            num_sentinel_tokens=config.model.num_sentinel_tokens,
+        )
 
     # Load tokenizer
     logger.info("Loading tokenizer...")
