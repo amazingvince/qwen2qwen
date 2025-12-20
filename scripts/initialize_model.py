@@ -20,6 +20,7 @@ import torch
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from qwen3_encdec import Qwen3EncoderDecoderTokenizer
 from qwen3_encdec.weight_initialization import (
     initialize_from_qwen3,
     verify_gradient_flow,
@@ -124,6 +125,21 @@ def main():
 
     logger.info(f"Saving model to {output_path}...")
     model.save_pretrained(output_path)
+
+    # Create and save tokenizer
+    logger.info("Creating tokenizer with sentinel tokens...")
+    tokenizer = Qwen3EncoderDecoderTokenizer.from_pretrained(
+        args.qwen3_model,
+        num_sentinel_tokens=args.num_sentinel_tokens,
+    )
+    tokenizer.save_pretrained(output_path)
+    logger.info(f"Tokenizer saved with vocab size: {tokenizer.vocab_size}")
+
+    # Update config with special token IDs for generation
+    model.config.pad_token_id = tokenizer.pad_token_id
+    model.config.eos_token_id = tokenizer.eos_token_id
+    model.config.decoder_start_token_id = tokenizer.pad_token_id  # Use pad as decoder start
+    model.config.save_pretrained(output_path)
 
     # Save initialization info
     init_info = {
