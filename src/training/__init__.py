@@ -26,6 +26,12 @@ from .monitor import (
     TrainingMonitor,
     compute_gradient_norm,
 )
+from .optimizations import (
+    apply_liger_kernels,
+    check_cce_available,
+    get_cce_info,
+    setup_tf32,
+)
 from .trainer import Qwen3EncoderDecoderTrainer, TrainingState
 
 __all__ = [
@@ -54,4 +60,9 @@ __all__ = [
     "clear_memory",
     "estimate_model_memory",
     "auto_find_batch_size",
+    # Optimizations
+    "setup_tf32",
+    "apply_liger_kernels",
+    "check_cce_available",
+    "get_cce_info",
 ]

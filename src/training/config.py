@@ -72,6 +72,13 @@ class TrainingConfig:
     bf16: bool = True
     fp16: bool = False
 
+    # GPU Optimizations
+    use_tf32: bool = True  # Enable TF32 for matmuls (Ampere+)
+    use_liger_kernels: bool = True  # Use Liger optimized kernels
+    use_cut_cross_entropy: bool = True  # Use Apple CCE for memory efficiency
+    torch_compile: bool = False  # torch.compile (slower startup, 10-20% speedup)
+    use_fused_adamw: bool = True  # Use CUDA fused AdamW (faster)
+
     # Checkpointing
     save_steps: int = 1000
     save_total_limit: int = 5
@@ -113,6 +120,9 @@ class InfraConfig:
     wandb_project: str = "qwen3-encoder-decoder"
     wandb_entity: Optional[str] = None
     wandb_run_name: Optional[str] = None
+    wandb_watch: Optional[str] = "gradients"  # "gradients", "all", or None
+    wandb_log_model: bool = False  # Log checkpoints to W&B
+    wandb_tags: Optional[List[str]] = None  # Tags for organization
 
 
 @dataclass

@@ -43,6 +43,20 @@ training = [
     "pyyaml>=6.0",
     "tqdm>=4.66.0",
 ]
+optimizations = [
+    "cut-cross-entropy>=24.11.0",
+    "liger-kernel>=0.4.0",
+]
+evaluation = [
+    "mteb>=1.0.0",
+    "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+]
+all = [
+    "qwen3-encdec[dev,training,optimizations,evaluation]",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qwen3_encdec", "src/data", "src/training"]

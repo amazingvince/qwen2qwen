@@ -25,6 +25,9 @@ from tqdm.auto import tqdm
 from .config import FullConfig
 from .memory_utils import log_memory_stats
 
+# Use standard logger for pre-accelerator messages
+_init_logger = logging.getLogger(__name__)
+# Accelerate logger for post-accelerator messages
 logger = get_logger(__name__)
 
 
@@ -67,6 +70,26 @@ class Qwen3EncoderDecoderTrainer:
     ):
         self.config = config
         self.tokenizer = tokenizer
+
+        # Enable TF32 for Ampere+ GPUs (up to 3x faster matmuls)
+        if getattr(config.training, "use_tf32", True):
+            from .optimizations import setup_tf32
+            setup_tf32()
+
+        # Apply Liger kernels before accelerator.prepare()
+        if getattr(config.training, "use_liger_kernels", True):
+            from .optimizations import apply_liger_kernels
+            model = apply_liger_kernels(model, model.config)
+
+        # Optional torch.compile (10-20% speedup, slower startup)
+        if getattr(config.training, "torch_compile", False):
+            _init_logger.info("Compiling model with torch.compile...")
+            model = torch.compile(model)
+
+        # Sync CCE flag from training config to model config
+        use_cce = getattr(config.training, "use_cut_cross_entropy", False)
+        if hasattr(model, "config"):
+            model.config.use_cut_cross_entropy = use_cce
 
         # Setup accelerator
         project_config = ProjectConfiguration(
@@ -127,6 +150,9 @@ class Qwen3EncoderDecoderTrainer:
         # Initialize logging
         if self.accelerator.is_main_process:
             self._init_logging()
+            # Log optimization settings
+            if use_cce:
+                logger.info("Cut Cross Entropy enabled for memory-efficient loss")
 
     def _create_optimizer(self, model: nn.Module) -> AdamW:
         """Create optimizer with weight decay separation."""
@@ -156,6 +182,12 @@ class Qwen3EncoderDecoderTrainer:
             {"params": no_decay_params, "weight_decay": 0.0},
         ]
 
+        # Use fused AdamW for better CUDA performance
+        use_fused = (
+            getattr(self.config.training, "use_fused_adamw", True)
+            and torch.cuda.is_available()
+        )
+
         return AdamW(
             optimizer_groups,
             lr=self.config.training.learning_rate,
@@ -164,6 +196,7 @@ class Qwen3EncoderDecoderTrainer:
                 self.config.training.adam_beta2,
             ),
             eps=self.config.training.adam_epsilon,
+            fused=use_fused,
         )
 
     def _create_scheduler(self) -> SequentialLR:
@@ -197,16 +230,36 @@ class Qwen3EncoderDecoderTrainer:
         """Initialize logging (W&B, TensorBoard)."""
         if self.config.training.report_to:
             try:
+                init_kwargs = {
+                    "wandb": {
+                        "entity": self.config.infra.wandb_entity,
+                        "name": self.config.infra.wandb_run_name,
+                    }
+                }
+                # Add tags if specified
+                if getattr(self.config.infra, "wandb_tags", None):
+                    init_kwargs["wandb"]["tags"] = self.config.infra.wandb_tags
+
                 self.accelerator.init_trackers(
                     project_name=self.config.infra.wandb_project,
                     config=self.config.to_dict(),
-                    init_kwargs={
-                        "wandb": {
-                            "entity": self.config.infra.wandb_entity,
-                            "name": self.config.infra.wandb_run_name,
-                        }
-                    },
+                    init_kwargs=init_kwargs,
                 )
+
+                # Enable wandb.watch for gradient tracking
+                wandb_watch = getattr(self.config.infra, "wandb_watch", None)
+                if wandb_watch and "wandb" in self.config.training.report_to:
+                    try:
+                        import wandb
+                        wandb.watch(
+                            self.model,
+                            log=wandb_watch,
+                            log_freq=100,
+                        )
+                        logger.info(f"Enabled wandb.watch with log={wandb_watch}")
+                    except Exception as e:
+                        logger.warning(f"Failed to enable wandb.watch: {e}")
+
             except Exception as e:
                 logger.warning(f"Failed to initialize trackers: {e}")
 
@@ -241,6 +294,10 @@ class Qwen3EncoderDecoderTrainer:
         self.model.train()
 
         train_loss = 0.0
+        step_tokens = 0  # Track tokens for throughput calculation
+        step_samples = 0  # Track samples for throughput calculation
+        import time
+        last_log_time = time.time()
 
         # Infinite iterator for streaming datasets
         train_iterator = iter(self.train_dataloader)
@@ -286,6 +343,8 @@ class Qwen3EncoderDecoderTrainer:
                 self.state.total_tokens_seen += (
                     batch_tokens * self.accelerator.num_processes
                 )
+                step_tokens += batch_tokens * self.accelerator.num_processes
+                step_samples += batch["input_ids"].shape[0] * self.accelerator.num_processes
 
                 progress_bar.update(1)
 
@@ -293,12 +352,26 @@ class Qwen3EncoderDecoderTrainer:
                 if self.state.global_step % self.config.training.logging_steps == 0:
                     avg_loss = train_loss / self.config.training.logging_steps
 
+                    # Calculate throughput
+                    current_time = time.time()
+                    elapsed = current_time - last_log_time
+                    tokens_per_sec = step_tokens / elapsed if elapsed > 0 else 0
+                    samples_per_sec = step_samples / elapsed if elapsed > 0 else 0
+
+                    # GPU memory stats
+                    gpu_memory_gb = 0.0
+                    if torch.cuda.is_available():
+                        gpu_memory_gb = torch.cuda.max_memory_allocated() / 1e9
+
                     self.accelerator.log(
                         {
                             "train/loss": avg_loss,
                             "train/learning_rate": self.scheduler.get_last_lr()[0],
                             "train/epoch": self.state.epoch,
                             "train/tokens_seen": self.state.total_tokens_seen,
+                            "train/tokens_per_sec": tokens_per_sec,
+                            "train/samples_per_sec": samples_per_sec,
+                            "train/gpu_memory_gb": gpu_memory_gb,
                         },
                         step=self.state.global_step,
                     )
@@ -306,9 +379,14 @@ class Qwen3EncoderDecoderTrainer:
                     progress_bar.set_postfix(
                         loss=f"{avg_loss:.4f}",
                         lr=f"{self.scheduler.get_last_lr()[0]:.2e}",
+                        tok_s=f"{tokens_per_sec:.0f}",
                     )
 
+                    # Reset counters
                     train_loss = 0.0
+                    step_tokens = 0
+                    step_samples = 0
+                    last_log_time = current_time
 
                 # Evaluation
                 if (

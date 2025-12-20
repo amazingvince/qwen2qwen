@@ -438,17 +438,58 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
             return_dict=True,
         )
 
-        # Project to vocabulary
-        lm_logits = self.lm_head(outputs.last_hidden_state)
-
-        # Compute loss
+        # Compute loss and logits
         loss = None
+        lm_logits = None
+
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-            loss = loss_fct(
-                lm_logits.view(-1, self.config.vocab_size),
-                labels.view(-1),
-            )
+            # Check if we should use Cut Cross Entropy
+            use_cce = getattr(self.config, "use_cut_cross_entropy", False)
+
+            if use_cce:
+                try:
+                    from cut_cross_entropy import linear_cross_entropy
+
+                    # CCE computes loss directly from hidden states and lm_head weight
+                    # This avoids materializing the full [batch*seq, vocab_size] logits tensor
+                    # CCE requires bf16 or fp16 for backward pass
+                    hidden_states = outputs.last_hidden_state
+                    classifier_weight = self.lm_head.weight
+                    if hidden_states.dtype == torch.float32:
+                        hidden_states = hidden_states.bfloat16()
+                        classifier_weight = classifier_weight.bfloat16()
+
+                    loss = linear_cross_entropy(
+                        hidden_states.view(-1, self.config.hidden_size),
+                        classifier_weight,  # [vocab_size, hidden_size]
+                        labels.view(-1),
+                        ignore_index=-100,
+                    )
+                    # Only compute logits if needed for output
+                    if not return_dict or output_attentions or output_hidden_states:
+                        lm_logits = self.lm_head(outputs.last_hidden_state)
+                except ImportError:
+                    logger.warning_once(
+                        "Cut Cross Entropy not available, falling back to standard CE. "
+                        "Install with: pip install 'cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git'"
+                    )
+                    lm_logits = self.lm_head(outputs.last_hidden_state)
+                    loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
+                    loss = loss_fct(
+                        lm_logits.view(-1, self.config.vocab_size),
+                        labels.view(-1),
+                    )
+            else:
+                # Standard cross entropy
+                lm_logits = self.lm_head(outputs.last_hidden_state)
+                loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
+                loss = loss_fct(
+                    lm_logits.view(-1, self.config.vocab_size),
+                    labels.view(-1),
+                )
+        else:
+            # No labels - just compute logits for inference
+            lm_logits = self.lm_head(outputs.last_hidden_state)
 
         if not return_dict:
             output = (lm_logits,) + (

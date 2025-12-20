@@ -64,6 +64,9 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
             Standard deviation for weight initialization.
         use_cache (`bool`, *optional*, defaults to True):
             Whether to use KV cache for generation.
+        use_cut_cross_entropy (`bool`, *optional*, defaults to False):
+            Whether to use Apple's Cut Cross Entropy for memory-efficient
+            loss computation. Requires the cut-cross-entropy package.
 
     Example:
         ```python
@@ -116,6 +119,8 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
         # Initialization
         initializer_range: float = 0.02,
         use_cache: bool = True,
+        # Optimization
+        use_cut_cross_entropy: bool = False,
         # Special tokens
         pad_token_id: Optional[int] = None,
         bos_token_id: Optional[int] = None,
@@ -149,6 +154,7 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
 
         self.initializer_range = initializer_range
         self.use_cache = use_cache
+        self.use_cut_cross_entropy = use_cut_cross_entropy
 
         super().__init__(
             pad_token_id=pad_token_id,

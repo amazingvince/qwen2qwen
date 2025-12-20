@@ -42,6 +42,13 @@ training:
   bf16: true
   fp16: false
 
+  # GPU Optimizations
+  use_tf32: true  # TF32 for Ampere+ (up to 3x faster matmuls)
+  use_liger_kernels: true  # Liger optimized RMSNorm + SwiGLU MLP
+  use_cut_cross_entropy: true  # Apple CCE (24GB -> 1MB loss memory)
+  torch_compile: false  # Optional, 10-20% speedup, slower startup
+  use_fused_adamw: true  # Use CUDA fused AdamW (faster)
+
   # Checkpointing
   save_steps: 1000
   save_total_limit: 5
@@ -69,3 +76,6 @@ infra:
   wandb_project: "qwen3-encoder-decoder"
   wandb_entity: null
   wandb_run_name: null
+  wandb_watch: "gradients"  # Log gradient histograms
+  wandb_log_model: false
+  wandb_tags: ["qwen3-encdec", "ul2", "t5gemma2"]
