@@ -1,6 +1,12 @@
 """Qwen3 Encoder-Decoder model implementation."""
 
 from .configuration_qwen3_encdec import Qwen3EncoderDecoderConfig
+from .encoder_only import (
+    Qwen3EncoderConfig,
+    Qwen3EncoderPooler,
+    Qwen3EncoderPoolerOutput,
+    Qwen3StandaloneEncoderModel,
+)
 from .modeling_qwen3_decoder import (
     Qwen3Decoder,
     Qwen3DecoderLayer,
@@ -83,4 +89,9 @@ __all__ = [
     "initialize_from_qwen3",
     "verify_weight_initialization",
     "verify_gradient_flow",
+    # Standalone Encoder (for embedding tasks)
+    "Qwen3EncoderConfig",
+    "Qwen3EncoderPooler",
+    "Qwen3EncoderPoolerOutput",
+    "Qwen3StandaloneEncoderModel",
 ]
