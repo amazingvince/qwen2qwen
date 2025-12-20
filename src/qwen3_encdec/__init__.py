@@ -34,6 +34,12 @@ from .tokenization_qwen3_encdec import (
     apply_sentinel_corruption,
     create_sentinel_sequence,
 )
+from .weight_initialization import (
+    Qwen3WeightMapper,
+    initialize_from_qwen3,
+    verify_gradient_flow,
+    verify_weight_initialization,
+)
 
 __version__ = "0.1.0"
 
@@ -72,4 +78,9 @@ __all__ = [
     # Decoder - Layers
     "Qwen3DecoderLayer",
     "Qwen3MergedAttention",
+    # Weight Initialization
+    "Qwen3WeightMapper",
+    "initialize_from_qwen3",
+    "verify_weight_initialization",
+    "verify_gradient_flow",
 ]
