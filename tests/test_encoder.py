@@ -665,3 +665,149 @@ class TestEncoderIntegration:
         # Config should be accessible
         assert encoder.config == small_config
         assert encoder.config.hidden_size == 64
+
+
+# =============================================================================
+# GPU Tests
+# =============================================================================
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+class TestEncoderGPU:
+    """Test suite for encoder on GPU."""
+
+    @pytest.fixture
+    def gpu_config(self):
+        """Create a small config for GPU testing."""
+        return Qwen3EncoderDecoderConfig(
+            vocab_size=1000,
+            hidden_size=64,
+            num_hidden_layers=2,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            intermediate_size=128,
+            max_position_embeddings=512,
+            num_sentinel_tokens=10,
+            sentinel_token_start_id=990,
+        )
+
+    def test_encoder_forward_gpu(self, gpu_config):
+        """Test basic forward pass on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda()
+        input_ids = torch.randint(0, 100, (2, 16)).cuda()
+
+        output = encoder(input_ids)
+
+        assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
+
+    def test_encoder_output_device(self, gpu_config):
+        """Test that outputs are on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda()
+        input_ids = torch.randint(0, 100, (2, 16)).cuda()
+
+        output = encoder(input_ids)
+
+        assert output.last_hidden_state.device.type == "cuda"
+
+    def test_cpu_gpu_consistency(self, gpu_config):
+        """Test that CPU and GPU produce consistent outputs."""
+        # Create encoder and copy to both devices
+        encoder_cpu = Qwen3Encoder(gpu_config)
+        encoder_gpu = Qwen3Encoder(gpu_config).cuda()
+
+        # Copy weights from CPU to GPU
+        encoder_gpu.load_state_dict(encoder_cpu.state_dict())
+
+        encoder_cpu.eval()
+        encoder_gpu.eval()
+
+        # Same input on both devices
+        input_ids = torch.randint(0, 100, (2, 16))
+
+        with torch.no_grad():
+            output_cpu = encoder_cpu(input_ids).last_hidden_state
+            output_gpu = encoder_gpu(input_ids.cuda()).last_hidden_state.cpu()
+
+        # Should match within floating point tolerance
+        assert torch.allclose(output_cpu, output_gpu, atol=1e-5)
+
+    def test_attention_mask_gpu(self, gpu_config):
+        """Test attention masking works on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda()
+        encoder.eval()
+
+        input_ids = torch.randint(0, 100, (2, 16)).cuda()
+
+        # Full attention
+        mask_full = torch.ones(2, 16).cuda()
+        output_full = encoder(input_ids, attention_mask=mask_full).last_hidden_state
+
+        # Partial mask
+        mask_partial = torch.ones(2, 16).cuda()
+        mask_partial[:, 8:] = 0
+        output_partial = encoder(input_ids, attention_mask=mask_partial).last_hidden_state
+
+        # Outputs should differ
+        assert not torch.allclose(output_full, output_partial)
+
+    def test_gradient_flow_gpu(self, gpu_config):
+        """Test gradients flow correctly on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda()
+        input_ids = torch.randint(0, 100, (2, 16)).cuda()
+
+        output = encoder(input_ids)
+        loss = output.last_hidden_state.sum()
+        loss.backward()
+
+        # Gradients should exist and be on GPU
+        assert encoder.embed_tokens.weight.grad is not None
+        assert encoder.embed_tokens.weight.grad.device.type == "cuda"
+        assert encoder.embed_tokens.weight.grad.abs().sum() > 0
+
+    def test_mixed_precision_bf16(self, gpu_config):
+        """Test BF16 forward pass on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda().to(torch.bfloat16)
+        input_ids = torch.randint(0, 100, (2, 16)).cuda()
+
+        output = encoder(input_ids)
+
+        assert output.last_hidden_state.dtype == torch.bfloat16
+        assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
+
+    def test_mixed_precision_fp16(self, gpu_config):
+        """Test FP16 forward pass on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda().to(torch.float16)
+        input_ids = torch.randint(0, 100, (2, 16)).cuda()
+
+        output = encoder(input_ids)
+
+        assert output.last_hidden_state.dtype == torch.float16
+        assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
+
+    def test_sdpa_on_gpu(self, gpu_config):
+        """Test SDPA path executes without error on GPU."""
+        encoder = Qwen3Encoder(gpu_config).cuda()
+        encoder.eval()
+
+        # Larger sequence to exercise SDPA more thoroughly
+        input_ids = torch.randint(0, 100, (4, 64)).cuda()
+        attention_mask = torch.ones(4, 64).cuda()
+
+        with torch.no_grad():
+            output = encoder(input_ids, attention_mask=attention_mask)
+
+        assert output.last_hidden_state.shape == (4, 64, gpu_config.hidden_size)
+        assert not torch.isnan(output.last_hidden_state).any()
+
+    def test_default_config_on_gpu(self):
+        """Test default (Qwen3-0.6B-like) config on GPU."""
+        config = Qwen3EncoderDecoderConfig()
+        encoder = Qwen3Encoder(config).cuda()
+
+        # Small batch to avoid OOM
+        input_ids = torch.randint(0, 1000, (1, 32)).cuda()
+
+        output = encoder(input_ids)
+
+        assert output.last_hidden_state.shape == (1, 32, 1024)
+        assert output.last_hidden_state.device.type == "cuda"
