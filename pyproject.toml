@@ -35,9 +35,17 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
 ]
+training = [
+    "accelerate>=0.27.0",
+    "datasets>=2.16.0",
+    "wandb>=0.16.0",
+    "tensorboard>=2.15.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.66.0",
+]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/qwen3_encdec"]
+packages = ["src/qwen3_encdec", "src/data", "src/training"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

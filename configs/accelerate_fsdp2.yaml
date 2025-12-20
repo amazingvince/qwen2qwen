@@ -1,0 +1,55 @@
+compute_environment: LOCAL_MACHINE
+debug: false
+distributed_type: FSDP
+downcast_bf16: 'no'
+
+fsdp_config:
+  # FSDP2 with per-parameter sharding
+  fsdp_version: 2
+
+  # Auto-wrap transformer layers
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  fsdp_transformer_layer_cls_to_wrap:
+    - Qwen3EncoderLayer
+    - Qwen3DecoderLayer
+
+  # Sharding strategy - shard everything for max memory efficiency
+  fsdp_sharding_strategy: FULL_SHARD
+
+  # State dict handling for checkpoints
+  fsdp_state_dict_type: SHARDED_STATE_DICT
+
+  # Memory optimization
+  fsdp_cpu_ram_efficient_loading: true
+  fsdp_offload_params: false
+
+  # Activation checkpointing for long sequences
+  fsdp_activation_checkpointing: true
+
+  # Sync module states at initialization
+  fsdp_sync_module_states: true
+
+  # Use original params for optimizer (required for some features)
+  fsdp_use_orig_params: true
+
+  # Backward prefetch for overlapping communication
+  fsdp_backward_prefetch: BACKWARD_PRE
+
+# Mixed precision - BF16 for stability
+mixed_precision: bf16
+
+# Machine configuration
+machine_rank: 0
+main_training_function: main
+num_machines: 1
+num_processes: 8
+
+# Communication backend
+rdzv_backend: static
+same_network: true
+
+# Not using TPU
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false

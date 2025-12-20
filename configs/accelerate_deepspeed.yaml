@@ -1,0 +1,40 @@
+compute_environment: LOCAL_MACHINE
+debug: false
+distributed_type: DEEPSPEED
+
+deepspeed_config:
+  deepspeed_multinode_launcher: standard
+
+  # ZeRO Stage 3 - full parameter/gradient/optimizer sharding
+  zero_stage: 3
+
+  # Offloading for additional memory savings
+  offload_optimizer_device: cpu
+  offload_param_device: none
+
+  # Gradient handling
+  gradient_accumulation_steps: auto
+  gradient_clipping: 1.0
+
+  # ZeRO-3 specific settings
+  zero3_init_flag: true
+  zero3_save_16bit_model: true
+
+# Mixed precision - BF16 for stability
+mixed_precision: bf16
+
+# Machine configuration
+machine_rank: 0
+main_training_function: main
+num_machines: 1
+num_processes: 8
+
+# Communication backend
+rdzv_backend: static
+same_network: true
+
+# Not using TPU
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false
