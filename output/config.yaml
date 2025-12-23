@@ -4,25 +4,34 @@ model:
   num_sentinel_tokens: 100
   use_flash_attention: true
 data:
-  dataset_name: wikimedia/wikipedia
-  dataset_config: 20231101.en
+  dataset_name: HuggingFaceFW/fineweb-edu
+  dataset_config: null
   text_column: text
   streaming: true
-  max_seq_length: 512
-  max_encoder_length: 256
-  max_decoder_length: 128
+  max_seq_length: 1024
+  max_encoder_length: 512
+  max_decoder_length: 256
   ul2_task_weights:
   - 1
   - 1
   - 1
   - 1
   - 4
+  ul2_use_ul2_5: null
+  ul2_length_adaptive: false
+  ul2_boundary_snapping: false
+  ul2_curriculum_start: null
+  ul2_curriculum_end: null
   preprocessing_num_workers: 2
   shuffle_buffer_size: 1000
+  dataloader_pin_memory: true
+  dataloader_prefetch_factor: 2
+  dataloader_persistent_workers: true
+  dataloader_collate_on_cpu: true
 training:
-  per_device_train_batch_size: 2
-  per_device_eval_batch_size: 4
-  gradient_accumulation_steps: 8
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 16
   learning_rate: 0.0001
   weight_decay: 0.01
   adam_beta1: 0.9
@@ -38,6 +47,7 @@ training:
   use_liger_kernels: true
   use_cut_cross_entropy: true
   torch_compile: false
+  use_fused_adamw: true
   save_steps: 500
   save_total_limit: 2
   eval_steps: 100

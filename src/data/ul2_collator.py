@@ -9,6 +9,8 @@ format compatible with Qwen3ForSeq2SeqLM.
 
 from __future__ import annotations
 
+import inspect
+import os
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -27,7 +29,61 @@ from .ul2_torch import (
 )
 
 
-class UL2DataCollator:
+def _get_sentinel_start_id(tokenizer: Any) -> int:
+    """Get the first sentinel token ID (<extra_id_0>)."""
+    # Use our tokenizer's method if available
+    if hasattr(tokenizer, "get_sentinel_token_id"):
+        return tokenizer.get_sentinel_token_id(0)
+
+    # Fallback: try to get from original_vocab_size
+    if hasattr(tokenizer, "original_vocab_size"):
+        return tokenizer.original_vocab_size
+
+    # Last fallback: search for extra_id tokens
+    if hasattr(tokenizer, "convert_tokens_to_ids"):
+        try:
+            token_id = tokenizer.convert_tokens_to_ids("<extra_id_0>")
+            if token_id != tokenizer.unk_token_id:
+                return token_id
+        except Exception:
+            pass
+
+    raise ValueError(
+        "Could not determine sentinel token start ID. "
+        "Tokenizer must have get_sentinel_token_id() method or "
+        "original_vocab_size attribute."
+    )
+
+
+class _TokenizerShim:
+    """Shim tokenizer to ensure UL2_5 can resolve sentinel IDs consistently."""
+
+    def __init__(self, tokenizer: Any) -> None:
+        self._tokenizer = tokenizer
+        self._sentinel_start_id = _get_sentinel_start_id(tokenizer)
+
+    def convert_tokens_to_ids(self, token: str) -> int:
+        if token == "<extra_id_0>":
+            return self._sentinel_start_id
+        return self._tokenizer.convert_tokens_to_ids(token)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._tokenizer, name)
+
+
+def _ul25_supported_fields(UL25Config: Any) -> List[str]:
+    if hasattr(UL25Config, "model_fields"):
+        return list(UL25Config.model_fields.keys())
+    if hasattr(UL25Config, "__fields__"):
+        return list(UL25Config.__fields__.keys())
+    try:
+        params = inspect.signature(UL25Config).parameters
+        return [name for name in params.keys() if name != "self"]
+    except (TypeError, ValueError):
+        return []
+
+
+class _LocalUL2DataCollator:
     """
     PyTorch-native UL2 Data Collator for Qwen3 Encoder-Decoder.
 
@@ -77,7 +133,7 @@ class UL2DataCollator:
         self.pad_to_multiple_of = pad_to_multiple_of
 
         # Token IDs
-        self.sentinel_start_id = self._get_sentinel_start_id()
+        self.sentinel_start_id = _get_sentinel_start_id(tokenizer)
         self.eos_id = tokenizer.eos_token_id
         self.pad_id = tokenizer.pad_token_id or 0
 
@@ -98,31 +154,6 @@ class UL2DataCollator:
 
         # Sampling weights as tensor
         self._weights = torch.tensor(self.config.weights, dtype=torch.float32)
-
-    def _get_sentinel_start_id(self) -> int:
-        """Get the first sentinel token ID (<extra_id_0>)."""
-        # Use our tokenizer's method if available
-        if hasattr(self.tokenizer, "get_sentinel_token_id"):
-            return self.tokenizer.get_sentinel_token_id(0)
-
-        # Fallback: try to get from original_vocab_size
-        if hasattr(self.tokenizer, "original_vocab_size"):
-            return self.tokenizer.original_vocab_size
-
-        # Last fallback: search for extra_id tokens
-        if hasattr(self.tokenizer, "convert_tokens_to_ids"):
-            try:
-                token_id = self.tokenizer.convert_tokens_to_ids("<extra_id_0>")
-                if token_id != self.tokenizer.unk_token_id:
-                    return token_id
-            except Exception:
-                pass
-
-        raise ValueError(
-            "Could not determine sentinel token start ID. "
-            "Tokenizer must have get_sentinel_token_id() method or "
-            "original_vocab_size attribute."
-        )
 
     def _get_prefix_ids(self, prefix: str, device: torch.device) -> Optional[Tensor]:
         """Get prefix token IDs on correct device."""
@@ -328,3 +359,193 @@ class UL2DataCollator:
             "decoder_attention_mask": decoder_attention_mask,
             "labels": labels,
         }
+
+
+class UL2DataCollator:
+    """
+    UL2 Data Collator wrapper.
+
+    Uses UL2_5 when available (pinned dependency) and falls back to the local
+    implementation when UL2_5 is not installed or when forced. Set
+    `use_ul2_5=False` or `QWEN3_UL2_IMPL=local` to force the local path.
+    """
+
+    def __init__(
+        self,
+        tokenizer: Any,
+        config: Optional[Union[UL2Config, Any]] = None,
+        max_length: int = 512,
+        max_labels_length: int = 128,
+        pad_to_multiple_of: Optional[int] = None,
+        decoder_start_token_id: Optional[int] = None,
+        use_ul2_5: Optional[bool] = None,
+        ul2_length_adaptive: Optional[bool] = None,
+        ul2_boundary_snapping: Optional[bool] = None,
+        ul2_curriculum_start: Optional[List[float]] = None,
+        ul2_curriculum_end: Optional[List[float]] = None,
+        collate_on_cpu: bool = False,
+        return_task_info: bool = False,
+    ):
+        self.tokenizer = tokenizer
+        self.config = config or UL2Config.t5gemma2()
+        self.max_length = max_length
+        self.max_labels_length = max_labels_length
+        self.pad_to_multiple_of = pad_to_multiple_of
+        self._collate_on_cpu = collate_on_cpu
+        self._ul2_length_adaptive = ul2_length_adaptive
+        self._ul2_boundary_snapping = ul2_boundary_snapping
+        self._ul2_curriculum_start = ul2_curriculum_start
+        self._ul2_curriculum_end = ul2_curriculum_end
+        if decoder_start_token_id is not None:
+            self.decoder_start_token_id = decoder_start_token_id
+        elif hasattr(tokenizer, "bos_token_id") and tokenizer.bos_token_id is not None:
+            self.decoder_start_token_id = tokenizer.bos_token_id
+        else:
+            self.decoder_start_token_id = getattr(tokenizer, "pad_token_id", 0) or 0
+        self.return_task_info = return_task_info
+
+        env_choice = os.getenv("QWEN3_UL2_IMPL", "").strip().lower()
+        if env_choice == "local":
+            use_ul2_5 = False
+        elif env_choice in {"ul2_5", "ul25", "ul2-5"}:
+            use_ul2_5 = True
+
+        self._use_ul2_5 = use_ul2_5 if use_ul2_5 is not None else True
+        self._impl = None
+        self._ul25_config = None
+
+        if self._use_ul2_5:
+            try:
+                from UL2_5.collator_torch import UL25DataCollator
+                from UL2_5.config import (
+                    DenoiserSpec as UL25DenoiserSpec,
+                    Task as UL25Task,
+                    UL25Config,
+                )
+            except ImportError:
+                if use_ul2_5:
+                    raise
+                self._use_ul2_5 = False
+            else:
+                self._ul25_config = self._coerce_ul25_config(
+                    self.config, UL25Config, UL25DenoiserSpec, UL25Task
+                )
+                shim = _TokenizerShim(tokenizer)
+                self._impl = UL25DataCollator(
+                    shim,
+                    config=self._ul25_config,
+                    max_length=max_length,
+                    max_labels_length=max_labels_length,
+                    pad_to_multiple_of=pad_to_multiple_of,
+                    return_tensors="pt",
+                    return_task_info=return_task_info,
+                )
+                self._weights = torch.tensor(
+                    list(self._ul25_config.weights), dtype=torch.float32
+                )
+
+        if not self._use_ul2_5:
+            if not isinstance(self.config, UL2Config):
+                raise TypeError(
+                    "Local UL2 collator requires UL2Config. "
+                    "Pass use_ul2_5=True to use UL2_5 configs."
+                )
+            self._impl = _LocalUL2DataCollator(
+                tokenizer=tokenizer,
+                config=self.config,
+                max_length=max_length,
+                max_labels_length=max_labels_length,
+                pad_to_multiple_of=pad_to_multiple_of,
+                decoder_start_token_id=self.decoder_start_token_id,
+            )
+            self._weights = self._impl._weights
+
+    def _coerce_ul25_config(
+        self,
+        config: Union[UL2Config, Any],
+        UL25Config,
+        UL25DenoiserSpec,
+        UL25Task,
+    ):
+        if isinstance(config, UL25Config):
+            return config
+        if not isinstance(config, UL2Config):
+            raise TypeError(
+                "UL2_5 collator expects UL2Config or UL25Config. "
+                f"Got {type(config).__name__}"
+            )
+
+        denoisers = [
+            UL25DenoiserSpec(
+                task=UL25Task(spec.task),
+                mu=spec.mu,
+                r=spec.r,
+                max_spans=spec.max_spans,
+                prefix=spec.prefix,
+                variable_r=spec.variable_r,
+                r_bounds=spec.r_bounds,
+            )
+            for spec in config.denoisers
+        ]
+
+        cfg_kwargs: Dict[str, Any] = {
+            "denoisers": denoisers,
+            "weights": list(config.weights),
+        }
+        if self._ul2_length_adaptive is not None:
+            cfg_kwargs["enable_length_adaptive"] = self._ul2_length_adaptive
+        if self._ul2_boundary_snapping is not None:
+            cfg_kwargs["enable_boundary_snapping"] = self._ul2_boundary_snapping
+        if self._ul2_curriculum_start is not None:
+            cfg_kwargs["curriculum_start"] = self._ul2_curriculum_start
+        if self._ul2_curriculum_end is not None:
+            cfg_kwargs["curriculum_end"] = self._ul2_curriculum_end
+
+        supported = _ul25_supported_fields(UL25Config)
+        if supported:
+            cfg_kwargs = {k: v for k, v in cfg_kwargs.items() if k in supported}
+
+        try:
+            return UL25Config(**cfg_kwargs)
+        except TypeError:
+            minimal_kwargs = {
+                k: v for k, v in cfg_kwargs.items() if k in {"denoisers", "weights"}
+            }
+            return UL25Config(**minimal_kwargs)
+
+    def __call__(self, examples: List[Dict[str, Any]]) -> Dict[str, Tensor]:
+        if self._collate_on_cpu:
+            cpu_examples = []
+            for ex in examples:
+                ex_cpu = {}
+                for key, value in ex.items():
+                    if isinstance(value, Tensor):
+                        ex_cpu[key] = value.cpu()
+                    else:
+                        ex_cpu[key] = value
+                cpu_examples.append(ex_cpu)
+            examples = cpu_examples
+
+        batch = self._impl(examples)
+
+        if self._use_ul2_5:
+            # Ensure decoder attention mask is present for compatibility
+            if "decoder_attention_mask" not in batch:
+                decoder_attention_mask = (batch["labels"] != -100).long()
+                if decoder_attention_mask.shape[1] > 0:
+                    decoder_attention_mask[:, 0] = 1
+                batch["decoder_attention_mask"] = decoder_attention_mask
+
+            # Optionally override decoder start token
+            if (
+                self.decoder_start_token_id is not None
+                and batch["decoder_input_ids"].shape[1] > 0
+            ):
+                batch["decoder_input_ids"][:, 0] = self.decoder_start_token_id
+
+        if self._collate_on_cpu:
+            for key, value in batch.items():
+                if isinstance(value, Tensor):
+                    batch[key] = value.cpu()
+
+        return batch

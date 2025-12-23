@@ -42,6 +42,8 @@ training = [
     "tensorboard>=2.15.0",
     "pyyaml>=6.0",
     "tqdm>=4.66.0",
+    "safetensors>=0.4.0",
+    "UL2_5 @ git+https://github.com/pszemraj/UL2_5.git@7c6ded34b266391da23b15356680cc7ba78449cb",
 ]
 optimizations = [
     "cut-cross-entropy>=24.11.0",
@@ -57,6 +59,9 @@ evaluation = [
 all = [
     "qwen3-encdec[dev,training,optimizations,evaluation]",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qwen3_encdec", "src/data", "src/training"]

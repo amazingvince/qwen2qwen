@@ -36,10 +36,20 @@ class DataConfig:
 
     # UL2 specific - T5Gemma 2 task weights (R1, R2, X1, X2, S)
     ul2_task_weights: List[int] = field(default_factory=lambda: [1, 1, 1, 1, 4])
+    # UL2_5 options
+    ul2_use_ul2_5: Optional[bool] = None
+    ul2_length_adaptive: bool = False
+    ul2_boundary_snapping: bool = False
+    ul2_curriculum_start: Optional[List[float]] = None
+    ul2_curriculum_end: Optional[List[float]] = None
 
     # Preprocessing
     preprocessing_num_workers: int = 4
     shuffle_buffer_size: int = 10000
+    dataloader_pin_memory: bool = True
+    dataloader_prefetch_factor: int = 2
+    dataloader_persistent_workers: bool = True
+    dataloader_collate_on_cpu: bool = True
 
 
 @dataclass

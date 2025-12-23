@@ -179,20 +179,44 @@ def main():
 
     # Create UL2 data collator
     ul2_config = UL2Config.t5gemma2()
+    if config.data.ul2_task_weights:
+        if len(config.data.ul2_task_weights) != len(ul2_config.weights):
+            raise ValueError(
+                "ul2_task_weights length must match UL2Config.t5gemma2() weights."
+            )
+        weight_total = float(sum(config.data.ul2_task_weights))
+        if weight_total <= 0:
+            raise ValueError("ul2_task_weights must sum to a positive value.")
+        ul2_config.weights = [w / weight_total for w in config.data.ul2_task_weights]
     collator = UL2DataCollator(
         tokenizer,
         config=ul2_config,
         max_length=config.data.max_encoder_length,
         max_labels_length=config.data.max_decoder_length,
+        use_ul2_5=config.data.ul2_use_ul2_5,
+        ul2_length_adaptive=config.data.ul2_length_adaptive,
+        ul2_boundary_snapping=config.data.ul2_boundary_snapping,
+        ul2_curriculum_start=config.data.ul2_curriculum_start,
+        ul2_curriculum_end=config.data.ul2_curriculum_end,
+        collate_on_cpu=config.data.dataloader_collate_on_cpu,
     )
 
     # Create data loader
+    num_workers = config.data.preprocessing_num_workers
+    dataloader_kwargs = {
+        "batch_size": config.training.per_device_train_batch_size,
+        "collate_fn": collator,
+        "num_workers": num_workers,
+        "pin_memory": config.data.dataloader_pin_memory,
+    }
+    if num_workers > 0:
+        dataloader_kwargs["prefetch_factor"] = config.data.dataloader_prefetch_factor
+        dataloader_kwargs["persistent_workers"] = (
+            config.data.dataloader_persistent_workers
+        )
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=config.training.per_device_train_batch_size,
-        collate_fn=collator,
-        num_workers=config.data.preprocessing_num_workers,
-        pin_memory=True,
+        **dataloader_kwargs,
     )
 
     # Create trainer

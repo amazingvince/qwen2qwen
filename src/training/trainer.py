@@ -6,7 +6,9 @@ gradient accumulation, and checkpointing.
 """
 
 import logging
+import math
 import shutil
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -111,6 +113,10 @@ class Qwen3EncoderDecoderTrainer:
         # Set seed for reproducibility
         set_seed(config.training.seed)
 
+        # Validate SDPA backend if flash attention is required
+        if getattr(config.model, "use_flash_attention", False):
+            self._validate_sdpa_backend(model)
+
         # Enable gradient checkpointing if configured
         if config.infra.fsdp_activation_checkpointing:
             if hasattr(model, "gradient_checkpointing_enable"):
@@ -147,7 +153,10 @@ class Qwen3EncoderDecoderTrainer:
         # Checkpoint paths for averaging
         self.checkpoint_paths: List[Path] = []
 
-        # Initialize logging
+        # Logging flag - set to False by default for all processes
+        self._logging_enabled = False
+
+        # Initialize logging (main process only)
         if self.accelerator.is_main_process:
             self._init_logging()
             # Log optimization settings
@@ -199,6 +208,76 @@ class Qwen3EncoderDecoderTrainer:
             fused=use_fused,
         )
 
+    def _validate_sdpa_backend(self, model: nn.Module) -> None:
+        """Ensure SDPA kernels are available when flash attention is requested."""
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "use_flash_attention=True requires CUDA, but no CUDA device is available."
+            )
+
+        if not hasattr(torch.backends.cuda, "sdp_kernel"):
+            raise RuntimeError(
+                "PyTorch SDPA backend control is unavailable. "
+                "Upgrade PyTorch to a version with torch.backends.cuda.sdp_kernel."
+            )
+
+        cfg = getattr(model, "config", None)
+        num_heads = (
+            getattr(cfg, "num_attention_heads", None)
+            or getattr(cfg, "num_heads", None)
+        )
+        head_dim = getattr(cfg, "head_dim", None)
+        if head_dim is None and num_heads and getattr(cfg, "hidden_size", None):
+            head_dim = cfg.hidden_size // num_heads
+
+        if not num_heads or not head_dim:
+            logger.warning(
+                "Unable to infer head_dim/num_heads for SDPA probe; "
+                "skipping kernel validation."
+            )
+            return
+
+        dtype = torch.float32
+        if self.config.training.bf16:
+            dtype = torch.bfloat16
+        elif self.config.training.fp16:
+            dtype = torch.float16
+
+        device = self.accelerator.device
+        q = torch.zeros((1, num_heads, 4, head_dim), device=device, dtype=dtype)
+        k = torch.zeros((1, num_heads, 4, head_dim), device=device, dtype=dtype)
+        v = torch.zeros((1, num_heads, 4, head_dim), device=device, dtype=dtype)
+
+        try:
+            with torch.backends.cuda.sdp_kernel(
+                enable_math=False, enable_flash=True, enable_mem_efficient=True
+            ):
+                torch.nn.functional.scaled_dot_product_attention(
+                    q,
+                    k,
+                    v,
+                    attn_mask=None,
+                    dropout_p=0.0,
+                    is_causal=False,
+                )
+        except Exception as exc:
+            raise RuntimeError(
+                "Flash attention requested but SDPA flash/mem-efficient kernels "
+                "are unavailable for this configuration. Check GPU capability, "
+                "PyTorch build, and attention head dimensions."
+            ) from exc
+
+        flags = []
+        for name in (
+            "flash_sdp_enabled",
+            "mem_efficient_sdp_enabled",
+            "math_sdp_enabled",
+        ):
+            if hasattr(torch.backends.cuda, name):
+                flags.append(f"{name}={getattr(torch.backends.cuda, name)()}")
+        if flags:
+            logger.info("SDPA backend flags: %s", ", ".join(flags))
+
     def _create_scheduler(self) -> SequentialLR:
         """Create learning rate scheduler with warmup."""
         # Linear warmup
@@ -228,6 +307,7 @@ class Qwen3EncoderDecoderTrainer:
 
     def _init_logging(self) -> None:
         """Initialize logging (W&B, TensorBoard)."""
+        self._logging_enabled = False
         if self.config.training.report_to:
             try:
                 init_kwargs = {
@@ -245,6 +325,7 @@ class Qwen3EncoderDecoderTrainer:
                     config=self.config.to_dict(),
                     init_kwargs=init_kwargs,
                 )
+                self._logging_enabled = True
 
                 # Enable wandb.watch for gradient tracking
                 wandb_watch = getattr(self.config.infra, "wandb_watch", None)
@@ -262,6 +343,7 @@ class Qwen3EncoderDecoderTrainer:
 
             except Exception as e:
                 logger.warning(f"Failed to initialize trackers: {e}")
+                self._logging_enabled = False
 
     def train(self) -> None:
         """Run training loop."""
@@ -293,11 +375,13 @@ class Qwen3EncoderDecoderTrainer:
 
         self.model.train()
 
-        train_loss = 0.0
+        loss_sum = 0.0
+        loss_count = 0
         step_tokens = 0  # Track tokens for throughput calculation
         step_samples = 0  # Track samples for throughput calculation
         import time
         last_log_time = time.time()
+        last_grad_norm = None
 
         # Infinite iterator for streaming datasets
         train_iterator = iter(self.train_dataloader)
@@ -311,17 +395,29 @@ class Qwen3EncoderDecoderTrainer:
                 batch = next(train_iterator)
                 self.state.epoch += 1
 
+            batch_tokens = batch["input_ids"].numel()
+            if "decoder_input_ids" in batch:
+                batch_tokens += batch["decoder_input_ids"].numel()
+            batch_samples = batch["input_ids"].shape[0]
+            self.state.total_tokens_seen += (
+                batch_tokens * self.accelerator.num_processes
+            )
+            step_tokens += batch_tokens * self.accelerator.num_processes
+            step_samples += batch_samples * self.accelerator.num_processes
+
             # Forward pass
             with self.accelerator.accumulate(self.model):
                 outputs = self.model(**batch)
                 loss = outputs.loss
+                loss_sum += loss.detach().float().item()
+                loss_count += 1
 
                 # Backward pass
                 self.accelerator.backward(loss)
 
                 # Gradient clipping
                 if self.accelerator.sync_gradients:
-                    self.accelerator.clip_grad_norm_(
+                    last_grad_norm = self.accelerator.clip_grad_norm_(
                         self.model.parameters(),
                         self.config.training.max_grad_norm,
                     )
@@ -333,24 +429,13 @@ class Qwen3EncoderDecoderTrainer:
 
             # Update tracking
             if self.accelerator.sync_gradients:
-                train_loss += loss.detach().item()
                 self.state.global_step += 1
-
-                # Update tokens seen
-                batch_tokens = batch["input_ids"].numel()
-                if "decoder_input_ids" in batch:
-                    batch_tokens += batch["decoder_input_ids"].numel()
-                self.state.total_tokens_seen += (
-                    batch_tokens * self.accelerator.num_processes
-                )
-                step_tokens += batch_tokens * self.accelerator.num_processes
-                step_samples += batch["input_ids"].shape[0] * self.accelerator.num_processes
 
                 progress_bar.update(1)
 
                 # Logging
                 if self.state.global_step % self.config.training.logging_steps == 0:
-                    avg_loss = train_loss / self.config.training.logging_steps
+                    avg_loss = loss_sum / max(loss_count, 1)
 
                     # Calculate throughput
                     current_time = time.time()
@@ -362,19 +447,26 @@ class Qwen3EncoderDecoderTrainer:
                     gpu_memory_gb = 0.0
                     if torch.cuda.is_available():
                         gpu_memory_gb = torch.cuda.max_memory_allocated() / 1e9
+                        torch.cuda.reset_peak_memory_stats()
 
-                    self.accelerator.log(
-                        {
-                            "train/loss": avg_loss,
-                            "train/learning_rate": self.scheduler.get_last_lr()[0],
-                            "train/epoch": self.state.epoch,
-                            "train/tokens_seen": self.state.total_tokens_seen,
-                            "train/tokens_per_sec": tokens_per_sec,
-                            "train/samples_per_sec": samples_per_sec,
-                            "train/gpu_memory_gb": gpu_memory_gb,
-                        },
-                        step=self.state.global_step,
-                    )
+                    if self._logging_enabled:
+                        self.accelerator.log(
+                            {
+                                "train/loss": avg_loss,
+                                "train/learning_rate": self.scheduler.get_last_lr()[0],
+                                "train/epoch": self.state.epoch,
+                                "train/tokens_seen": self.state.total_tokens_seen,
+                                "train/tokens_per_sec": tokens_per_sec,
+                                "train/samples_per_sec": samples_per_sec,
+                                "train/gpu_memory_gb": gpu_memory_gb,
+                                "train/grad_norm": (
+                                    float(last_grad_norm)
+                                    if last_grad_norm is not None
+                                    else None
+                                ),
+                            },
+                            step=self.state.global_step,
+                        )
 
                     progress_bar.set_postfix(
                         loss=f"{avg_loss:.4f}",
@@ -383,7 +475,8 @@ class Qwen3EncoderDecoderTrainer:
                     )
 
                     # Reset counters
-                    train_loss = 0.0
+                    loss_sum = 0.0
+                    loss_count = 0
                     step_tokens = 0
                     step_samples = 0
                     last_log_time = current_time
@@ -395,10 +488,11 @@ class Qwen3EncoderDecoderTrainer:
                 ):
                     eval_loss = self.evaluate()
 
-                    self.accelerator.log(
-                        {"eval/loss": eval_loss},
-                        step=self.state.global_step,
-                    )
+                    if self._logging_enabled:
+                        self.accelerator.log(
+                            {"eval/loss": eval_loss},
+                            step=self.state.global_step,
+                        )
 
                     if eval_loss < self.state.best_eval_loss:
                         self.state.best_eval_loss = eval_loss
@@ -433,9 +527,15 @@ class Qwen3EncoderDecoderTrainer:
         total_loss = 0.0
         num_batches = 0
 
-        max_batches = (
-            self.config.training.eval_samples
-            // self.config.training.per_device_eval_batch_size
+        max_batches = max(
+            1,
+            math.ceil(
+                self.config.training.eval_samples
+                / (
+                    self.config.training.per_device_eval_batch_size
+                    * self.accelerator.num_processes
+                )
+            ),
         )
 
         for batch in tqdm(
@@ -512,6 +612,19 @@ class Qwen3EncoderDecoderTrainer:
 
         # Load and average state dicts
         avg_state: Dict[str, torch.Tensor] = {}
+        dtype_map: Dict[str, torch.dtype] = {}
+        counts: Dict[str, int] = defaultdict(int)
+
+        def _load_state_dict(path: Path) -> Optional[Dict[str, torch.Tensor]]:
+            if path.suffix == ".safetensors":
+                try:
+                    from safetensors.torch import load_file
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "safetensors is required to load .safetensors checkpoints."
+                    ) from exc
+                return load_file(str(path))
+            return torch.load(path, map_location="cpu")
 
         for ckpt_path in checkpoints_to_average:
             model_path = ckpt_path / "pytorch_model.bin"
@@ -522,27 +635,50 @@ class Qwen3EncoderDecoderTrainer:
                 logger.warning(f"No model file found in {ckpt_path}")
                 continue
 
-            state_dict = torch.load(model_path, map_location="cpu")
+            state_dict = _load_state_dict(model_path)
 
             for key, value in state_dict.items():
-                if key not in avg_state:
-                    avg_state[key] = value.float() / len(checkpoints_to_average)
+                if not torch.is_tensor(value):
+                    continue
+                if value.is_floating_point():
+                    if key not in avg_state:
+                        avg_state[key] = value.float().clone()
+                        dtype_map[key] = value.dtype
+                    else:
+                        avg_state[key] += value.float()
+                    counts[key] += 1
                 else:
-                    avg_state[key] += value.float() / len(checkpoints_to_average)
+                    if key not in avg_state:
+                        avg_state[key] = value
+                        counts[key] = 1
 
         if not avg_state:
             logger.warning("No state dicts loaded for averaging")
             return
 
         # Convert back to original dtype
-        for key in avg_state:
-            avg_state[key] = avg_state[key].to(torch.bfloat16)
+        for key, value in avg_state.items():
+            if torch.is_tensor(value) and value.is_floating_point():
+                avg_state[key] = (value / max(counts.get(key, 1), 1)).to(
+                    dtype_map.get(key, value.dtype)
+                )
 
         # Save averaged checkpoint
         output_dir = Path(self.config.infra.output_dir) / "checkpoint-averaged"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        torch.save(avg_state, output_dir / "pytorch_model.bin")
+        saved = False
+        try:
+            from safetensors.torch import save_file
+        except ImportError:
+            save_file = None
+
+        if save_file is not None:
+            save_file(avg_state, str(output_dir / "model.safetensors"))
+            saved = True
+
+        if not saved:
+            torch.save(avg_state, output_dir / "pytorch_model.bin")
 
         # Copy config and tokenizer from last checkpoint
         last_ckpt = checkpoints_to_average[-1]
