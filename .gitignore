@@ -223,7 +223,7 @@ output/
 extracted-encoder/
 eval_results/
 mteb_results/
-extraced-encoder-5k/
+extracted-encoder-5k/
 
 # Claude Code
 .claude/
