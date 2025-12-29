@@ -29,7 +29,7 @@ from torch.utils.data import DataLoader
 from accelerate import Accelerator
 from tqdm.auto import tqdm
 
-from data import UL2Config, UL2DataCollator
+from data import UL2DataCollator, t5gemma2_config
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer, Qwen3ForSeq2SeqLM
 from training.execution import PHASE_CONFIGS, TrainingPhase
 from training.monitor import TrainingMonitor, compute_gradient_norm
@@ -148,11 +148,10 @@ def run_validation(
             max_seq_length=2048,
         )
 
-    # Create UL2 collator
-    ul2_config = UL2Config.t5gemma2()
+    ul25_config = t5gemma2_config()
     collator = UL2DataCollator(
         tokenizer,
-        config=ul2_config,
+        config=ul25_config,
         max_length=1024,
         max_labels_length=512,
     )

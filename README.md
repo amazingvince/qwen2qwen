@@ -357,8 +357,7 @@ qwen2qwen/
 │   │   ├── modeling_qwen3_encdec.py
 │   │   ├── encoder_only.py     # Standalone encoder for inference
 │   │   └── weight_initialization.py
-│   ├── data/                   # UL2 data pipeline
-│   │   ├── ul2_torch.py
+│   ├── data/                   # UL2_5-backed data pipeline
 │   │   └── ul2_collator.py
 │   ├── training/               # Training infrastructure
 │   │   ├── config.py

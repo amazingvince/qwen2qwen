@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import torch
 from torch.utils.data import DataLoader
 
-from data import UL2Config, UL2DataCollator
+from data import UL2DataCollator, t5gemma2_config
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer, Qwen3ForSeq2SeqLM
 from qwen3_encdec.weight_initialization import initialize_from_qwen3
 from training import FullConfig, Qwen3EncoderDecoderTrainer
@@ -177,27 +177,28 @@ def main():
             config,
         )
 
-    # Create UL2 data collator
-    ul2_config = UL2Config.t5gemma2()
-    if config.data.ul2_task_weights:
-        if len(config.data.ul2_task_weights) != len(ul2_config.weights):
-            raise ValueError(
-                "ul2_task_weights length must match UL2Config.t5gemma2() weights."
-            )
+    # Create UL2_5 data collator
+    weights = None
+    if config.data.ul2_task_weights is not None:
+        if len(config.data.ul2_task_weights) != 5:
+            raise ValueError("ul2_task_weights length must be 5 for t5gemma2_config().")
         weight_total = float(sum(config.data.ul2_task_weights))
         if weight_total <= 0:
             raise ValueError("ul2_task_weights must sum to a positive value.")
-        ul2_config.weights = [w / weight_total for w in config.data.ul2_task_weights]
+        weights = [float(w) for w in config.data.ul2_task_weights]
+
+    ul25_config = t5gemma2_config(
+        weights=weights,
+        enable_length_adaptive=config.data.ul2_length_adaptive,
+        enable_boundary_snapping=config.data.ul2_boundary_snapping,
+        curriculum_start=config.data.ul2_curriculum_start,
+        curriculum_end=config.data.ul2_curriculum_end,
+    )
     collator = UL2DataCollator(
         tokenizer,
-        config=ul2_config,
+        config=ul25_config,
         max_length=config.data.max_encoder_length,
         max_labels_length=config.data.max_decoder_length,
-        use_ul2_5=config.data.ul2_use_ul2_5,
-        ul2_length_adaptive=config.data.ul2_length_adaptive,
-        ul2_boundary_snapping=config.data.ul2_boundary_snapping,
-        ul2_curriculum_start=config.data.ul2_curriculum_start,
-        ul2_curriculum_end=config.data.ul2_curriculum_end,
         collate_on_cpu=config.data.dataloader_collate_on_cpu,
     )
 

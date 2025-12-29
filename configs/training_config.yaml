@@ -16,7 +16,6 @@ data:
   max_encoder_length: 4096
   max_decoder_length: 2048
   ul2_task_weights: [1, 1, 1, 1, 4]  # T5Gemma 2: R1, R2, X1, X2, S (4x weight)
-  ul2_use_ul2_5: null  # null=auto, true=force UL2_5, false=force local
   ul2_length_adaptive: false
   ul2_boundary_snapping: false
   ul2_curriculum_start: null
