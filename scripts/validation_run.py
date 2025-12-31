@@ -261,6 +261,8 @@ def run_validation(
             batch = next(data_iter)
 
         with accelerator.accumulate(model):
+            # Remove task_indices from batch (used for debugging, not model input)
+            batch.pop("task_indices", None)
             outputs = model(**batch)
             loss = outputs.loss
 
