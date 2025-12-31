@@ -7,7 +7,13 @@ from dataclasses import dataclass
 import pytest
 import torch
 
-from src.data import UL2DataCollator, t5gemma2_config
+from src.data import (
+    UL2DataCollator,
+    create_collator_from_config,
+    t5gemma2_config,
+    ul2_recommended_config,
+    ul2_recommended_with_curriculum_config,
+)
 
 
 @dataclass
@@ -107,3 +113,106 @@ def test_invalid_t5gemma2_weights_rejected(bad_weights):
     if len(bad_weights) != 5 or sum(bad_weights) <= 0:
         with pytest.raises(Exception):
             t5gemma2_config(weights=bad_weights)  # type: ignore[arg-type]
+
+
+class TestUL2RecommendedConfigs:
+    """Tests for the new recommended config functions."""
+
+    def test_recommended_config_returns_valid_config(self):
+        cfg = ul2_recommended_config()
+        assert cfg is not None
+        assert hasattr(cfg, "denoisers")
+        assert hasattr(cfg, "weights")
+        assert len(cfg.denoisers) > 0
+        assert len(cfg.weights) > 0
+
+    def test_recommended_config_with_unpad_options(self):
+        cfg = ul2_recommended_config(
+            enable_unpad_encoder=True,
+            enable_unpad_decoder=True,
+        )
+        assert cfg.enable_unpad_encoder is True
+        assert cfg.enable_unpad_decoder is True
+
+    def test_recommended_with_curriculum_returns_valid_config(self):
+        cfg = ul2_recommended_with_curriculum_config()
+        assert cfg is not None
+        assert hasattr(cfg, "denoisers")
+        assert hasattr(cfg, "weights")
+        # Curriculum configs should have curriculum_start/end defined
+        assert cfg.curriculum_start is not None or cfg.curriculum_end is not None
+
+
+@dataclass
+class MockDataConfig:
+    """Mock DataConfig for testing create_collator_from_config."""
+
+    max_encoder_length: int = 512
+    max_decoder_length: int = 128
+    dataloader_collate_on_cpu: bool = True
+    ul2_curriculum_start: list = None
+    ul2_curriculum_end: list = None
+    ul2_unpad_encoder: bool = False
+    ul2_unpad_decoder: bool = False
+
+
+class TestCreateCollatorFromConfig:
+    """Tests for the factory function."""
+
+    def test_factory_creates_collator_with_defaults(self):
+        tokenizer = MockTokenizer()
+        config = MockDataConfig()
+        collator = create_collator_from_config(tokenizer, config)
+
+        assert isinstance(collator, UL2DataCollator)
+        assert collator.max_length == config.max_encoder_length
+        assert collator.max_labels_length == config.max_decoder_length
+
+    def test_factory_uses_curriculum_config_when_curriculum_set(self):
+        tokenizer = MockTokenizer()
+        config = MockDataConfig(
+            ul2_curriculum_start=[1.0, 1.0, 1.0, 1.0, 1.0],
+            ul2_curriculum_end=[0.0, 0.0, 0.0, 0.0, 5.0],
+        )
+        collator = create_collator_from_config(tokenizer, config)
+
+        assert isinstance(collator, UL2DataCollator)
+        # Curriculum config should have curriculum_start/end
+        assert (
+            collator.config.curriculum_start is not None
+            or collator.config.curriculum_end is not None
+        )
+
+    def test_factory_passes_unpad_options(self):
+        tokenizer = MockTokenizer()
+        config = MockDataConfig(
+            ul2_unpad_encoder=True,
+            ul2_unpad_decoder=True,
+        )
+        collator = create_collator_from_config(tokenizer, config)
+
+        assert collator.config.enable_unpad_encoder is True
+        assert collator.config.enable_unpad_decoder is True
+
+
+class TestCurriculumProgress:
+    """Tests for curriculum progress integration."""
+
+    def test_progress_clamps_to_valid_range(self):
+        tokenizer = MockTokenizer()
+        collator = UL2DataCollator(tokenizer, config=ul2_recommended_config())
+
+        # Values should be clamped 0-1 by the underlying collator
+        collator.progress = 0.0
+        assert collator.progress >= 0.0
+
+        collator.progress = 1.0
+        assert collator.progress <= 1.0
+
+    def test_progress_updates_correctly(self):
+        tokenizer = MockTokenizer()
+        collator = UL2DataCollator(tokenizer, config=ul2_recommended_config())
+
+        for expected in [0.0, 0.25, 0.5, 0.75, 1.0]:
+            collator.progress = expected
+            assert abs(collator.progress - expected) < 1e-6

@@ -60,6 +60,7 @@ class Qwen3EncoderDecoderTrainer:
         config: Full training configuration.
         train_dataloader: Training data loader.
         eval_dataloader: Optional evaluation data loader.
+        collator: Optional UL2 data collator for curriculum progress updates.
     """
 
     def __init__(
@@ -69,9 +70,11 @@ class Qwen3EncoderDecoderTrainer:
         config: FullConfig,
         train_dataloader: DataLoader,
         eval_dataloader: Optional[DataLoader] = None,
+        collator: Optional[Any] = None,
     ):
         self.config = config
         self.tokenizer = tokenizer
+        self._collator = collator  # Store for curriculum progress updates
 
         # Enable TF32 for Ampere+ GPUs (up to 3x faster matmuls)
         if getattr(config.training, "use_tf32", True):
@@ -162,6 +165,13 @@ class Qwen3EncoderDecoderTrainer:
             # Log optimization settings
             if use_cce:
                 logger.info("Cut Cross Entropy enabled for memory-efficient loss")
+
+    def _update_curriculum_progress(self) -> None:
+        """Update collator progress for curriculum learning."""
+        if self._collator is None or not hasattr(self._collator, "progress"):
+            return
+        progress = self.state.global_step / max(self.config.training.num_train_steps, 1)
+        self._collator.progress = min(1.0, max(0.0, progress))
 
     def _create_optimizer(self, model: nn.Module) -> AdamW:
         """Create optimizer with weight decay separation."""
@@ -430,6 +440,7 @@ class Qwen3EncoderDecoderTrainer:
             # Update tracking
             if self.accelerator.sync_gradients:
                 self.state.global_step += 1
+                self._update_curriculum_progress()
 
                 progress_bar.update(1)
 
@@ -462,6 +473,11 @@ class Qwen3EncoderDecoderTrainer:
                                 "train/grad_norm": (
                                     float(last_grad_norm)
                                     if last_grad_norm is not None
+                                    else None
+                                ),
+                                "train/curriculum_progress": (
+                                    self._collator.progress
+                                    if self._collator and hasattr(self._collator, "progress")
                                     else None
                                 ),
                             },

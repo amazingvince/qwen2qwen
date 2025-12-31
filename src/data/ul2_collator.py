@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-import torch
 from torch import Tensor
+
+import warnings
 
 try:
     from UL2_5.collator_torch import UL25DataCollator as _UL25DataCollator
@@ -14,6 +15,40 @@ except ImportError as exc:  # pragma: no cover
     raise ImportError(
         "UL2_5 is required for UL2 training. Install with `pip install -e '.[training]'`."
     ) from exc
+
+
+def ul2_recommended_config(
+    *,
+    enable_unpad_encoder: bool = False,
+    enable_unpad_decoder: bool = False,
+) -> UL25Config:
+    """
+    UL25Config.recommended() with optional Flash Attention unpad.
+
+    This is the recommended default for training - uses UL2_5's optimized
+    denoiser mixture without curriculum learning.
+    """
+    config = UL25Config.recommended()
+    config.enable_unpad_encoder = enable_unpad_encoder
+    config.enable_unpad_decoder = enable_unpad_decoder
+    return config
+
+
+def ul2_recommended_with_curriculum_config(
+    *,
+    enable_unpad_encoder: bool = False,
+    enable_unpad_decoder: bool = False,
+) -> UL25Config:
+    """
+    UL25Config.recommended_with_curriculum() with optional Flash Attention unpad.
+
+    Use this when curriculum learning is desired - task weights shift during training.
+    Requires updating collator.progress during training.
+    """
+    config = UL25Config.recommended_with_curriculum()
+    config.enable_unpad_encoder = enable_unpad_encoder
+    config.enable_unpad_decoder = enable_unpad_decoder
+    return config
 
 
 def t5gemma2_config(
@@ -30,7 +65,17 @@ def t5gemma2_config(
     T5Gemma 2 UL2 mixture used by this project.
 
     Mixture: R1, R2, X1, X2, S with default weights 1:1:1:1:4.
+
+    .. deprecated::
+        Use :func:`ul2_recommended_config` or
+        :func:`ul2_recommended_with_curriculum_config` instead.
     """
+    warnings.warn(
+        "t5gemma2_config() is deprecated. Use ul2_recommended_config() or "
+        "ul2_recommended_with_curriculum_config() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return UL25Config(
         denoisers=[
             DenoiserSpec(task=Task.SPAN, mu=3.0, r=0.15, prefix="[R]"),  # R1
@@ -51,12 +96,30 @@ def t5gemma2_config(
 
 def _infer_ul25_sentinel_start_id(tokenizer: Any) -> int:
     """
-    UL2_5 expects <extra_id_0> to resolve to the *highest* sentinel token ID.
+    Infer the sentinel start ID for UL2_5.
 
-    Our tokenizer layout uses contiguous sentinel IDs but may not follow the
-    T5 ID ordering; normalize by taking the maximum known sentinel ID.
+    UL2_5 expects <extra_id_0> to resolve to the *highest* sentinel token ID
+    (T5-style descending order). Our tokenizer uses ascending order, so we
+    return the ID of the last sentinel: original_vocab_size + num_sentinels - 1.
+
+    Fallback order (most reliable first):
+    1. Compute from tokenizer metadata (original_vocab_size + num_sentinels - 1)
+    2. Use get_sentinel_token_id(num_sentinels - 1)
+    3. Probe tokens via convert_tokens_to_ids
     """
     num_sentinels = getattr(tokenizer, "num_sentinel_tokens", None)
+    original_vocab_size = getattr(tokenizer, "original_vocab_size", None)
+
+    # Primary: compute from tokenizer metadata (fastest, most reliable)
+    if (
+        isinstance(num_sentinels, int)
+        and num_sentinels > 0
+        and isinstance(original_vocab_size, int)
+        and original_vocab_size >= 0
+    ):
+        return original_vocab_size + num_sentinels - 1
+
+    # Secondary: use get_sentinel_token_id method
     if (
         isinstance(num_sentinels, int)
         and num_sentinels > 0
@@ -67,6 +130,7 @@ def _infer_ul25_sentinel_start_id(tokenizer: Any) -> int:
         except Exception:
             pass
 
+    # Tertiary: probe tokens via convert_tokens_to_ids
     unk_id = getattr(tokenizer, "unk_token_id", None)
     last_token = (
         f"<extra_id_{num_sentinels - 1}>" if isinstance(num_sentinels, int) else "<extra_id_99>"
@@ -87,18 +151,9 @@ def _infer_ul25_sentinel_start_id(tokenizer: Any) -> int:
     if candidate_ids:
         return max(candidate_ids)
 
-    original_vocab_size = getattr(tokenizer, "original_vocab_size", None)
-    if (
-        isinstance(num_sentinels, int)
-        and num_sentinels > 0
-        and isinstance(original_vocab_size, int)
-        and original_vocab_size >= 0
-    ):
-        return original_vocab_size + num_sentinels - 1
-
     raise ValueError(
-        "Unable to infer UL2_5 sentinel_start ID. "
-        "Tokenizer must support extra_id tokens or expose original_vocab_size/num_sentinel_tokens."
+        "Unable to infer UL2_5 sentinel_start ID. Tokenizer must expose "
+        "original_vocab_size + num_sentinel_tokens, or support <extra_id_*> tokens."
     )
 
 
@@ -133,7 +188,7 @@ class UL2DataCollator:
         collate_on_cpu: bool = True,
     ) -> None:
         self.tokenizer = tokenizer
-        self.config = config or t5gemma2_config()
+        self.config = config or ul2_recommended_config()
         self.max_length = max_length
         self.max_labels_length = max_labels_length
         self.pad_to_multiple_of = pad_to_multiple_of
@@ -191,3 +246,49 @@ class UL2DataCollator:
                     batch[key] = value.cpu()
 
         return batch
+
+
+def create_collator_from_config(
+    tokenizer: Any,
+    data_config: Any,
+    return_task_info: bool = False,
+) -> UL2DataCollator:
+    """
+    Create a UL2DataCollator from a DataConfig.
+
+    Automatically selects the appropriate UL2 config based on whether
+    curriculum learning is enabled (ul2_curriculum_start/end are set).
+
+    Args:
+        tokenizer: Tokenizer instance with sentinel token support.
+        data_config: DataConfig from training.config module.
+        return_task_info: Whether to include task info in batch output.
+
+    Returns:
+        Configured UL2DataCollator instance.
+    """
+    # Choose config based on whether curriculum is enabled
+    use_curriculum = (
+        getattr(data_config, "ul2_curriculum_start", None) is not None
+        or getattr(data_config, "ul2_curriculum_end", None) is not None
+    )
+
+    if use_curriculum:
+        ul25_config = ul2_recommended_with_curriculum_config(
+            enable_unpad_encoder=getattr(data_config, "ul2_unpad_encoder", False),
+            enable_unpad_decoder=getattr(data_config, "ul2_unpad_decoder", False),
+        )
+    else:
+        ul25_config = ul2_recommended_config(
+            enable_unpad_encoder=getattr(data_config, "ul2_unpad_encoder", False),
+            enable_unpad_decoder=getattr(data_config, "ul2_unpad_decoder", False),
+        )
+
+    return UL2DataCollator(
+        tokenizer,
+        config=ul25_config,
+        max_length=getattr(data_config, "max_encoder_length", 512),
+        max_labels_length=getattr(data_config, "max_decoder_length", 128),
+        collate_on_cpu=getattr(data_config, "dataloader_collate_on_cpu", True),
+        return_task_info=return_task_info,
+    )

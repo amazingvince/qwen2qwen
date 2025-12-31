@@ -41,6 +41,9 @@ class DataConfig:
     ul2_boundary_snapping: bool = False
     ul2_curriculum_start: Optional[List[float]] = None
     ul2_curriculum_end: Optional[List[float]] = None
+    # Flash Attention unpad options (requires FA2 varlen kernels)
+    ul2_unpad_encoder: bool = False
+    ul2_unpad_decoder: bool = False
 
     # Preprocessing
     preprocessing_num_workers: int = 4
