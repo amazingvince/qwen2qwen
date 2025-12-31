@@ -2,19 +2,12 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Dict, List, Optional
 
 from torch import Tensor
-
-import warnings
-
-try:
-    from UL2_5.collator_torch import UL25DataCollator as _UL25DataCollator
-    from UL2_5.config import DenoiserSpec, Task, UL25Config
-except ImportError as exc:  # pragma: no cover
-    raise ImportError(
-        "UL2_5 is required for UL2 training. Install with `pip install -e '.[training]'`."
-    ) from exc
+from UL2_5.collator_torch import UL25DataCollator as _UL25DataCollator
+from UL2_5.config import DenoiserSpec, Task, UL25Config
 
 
 def ul2_recommended_config(
