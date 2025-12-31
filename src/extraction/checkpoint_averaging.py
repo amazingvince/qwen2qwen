@@ -89,15 +89,9 @@ class CheckpointAverager:
                 raise FileNotFoundError(f"No model file found in {cp_path}")
 
             if model_path.suffix == ".safetensors":
-                try:
-                    from safetensors.torch import load_file
+                from safetensors.torch import load_file
 
-                    state_dict = load_file(model_path)
-                except ImportError:
-                    raise ImportError(
-                        "safetensors is required for .safetensors files. "
-                        "Install with: pip install safetensors"
-                    )
+                state_dict = load_file(model_path)
             else:
                 state_dict = torch.load(model_path, map_location="cpu")
 
@@ -130,14 +124,10 @@ class CheckpointAverager:
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # Save model weights
-        try:
-            from safetensors.torch import save_file
+        from safetensors.torch import save_file
 
-            output_model_path = self.output_path / "model.safetensors"
-            save_file(state_dict, output_model_path)
-        except ImportError:
-            output_model_path = self.output_path / "pytorch_model.bin"
-            torch.save(state_dict, output_model_path)
+        output_model_path = self.output_path / "model.safetensors"
+        save_file(state_dict, output_model_path)
 
         logger.info(f"Saved averaged model to {output_model_path}")
 

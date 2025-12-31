@@ -627,12 +627,8 @@ class Qwen3EncoderDecoderTrainer:
 
         def _load_state_dict(path: Path) -> Optional[Dict[str, torch.Tensor]]:
             if path.suffix == ".safetensors":
-                try:
-                    from safetensors.torch import load_file
-                except ImportError as exc:
-                    raise RuntimeError(
-                        "safetensors is required to load .safetensors checkpoints."
-                    ) from exc
+                from safetensors.torch import load_file
+
                 return load_file(str(path))
             return torch.load(path, map_location="cpu")
 
@@ -677,18 +673,9 @@ class Qwen3EncoderDecoderTrainer:
         output_dir = Path(self.config.infra.output_dir) / "checkpoint-averaged"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        saved = False
-        try:
-            from safetensors.torch import save_file
-        except ImportError:
-            save_file = None
+        from safetensors.torch import save_file
 
-        if save_file is not None:
-            save_file(avg_state, str(output_dir / "model.safetensors"))
-            saved = True
-
-        if not saved:
-            torch.save(avg_state, output_dir / "pytorch_model.bin")
+        save_file(avg_state, str(output_dir / "model.safetensors"))
 
         # Copy config and tokenizer from last checkpoint
         last_ckpt = checkpoints_to_average[-1]
