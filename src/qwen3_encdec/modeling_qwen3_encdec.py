@@ -24,7 +24,7 @@ from transformers.modeling_outputs import (
 from transformers.utils import logging
 
 from .configuration_qwen3_encdec import Qwen3EncoderDecoderConfig
-from .modeling_qwen3_decoder import Qwen3Decoder, Qwen3DecoderOutput
+from .modeling_qwen3_decoder import Qwen3Decoder
 from .modeling_qwen3_encoder import Qwen3Encoder, Qwen3EncoderOutput
 
 logger = logging.get_logger(__name__)

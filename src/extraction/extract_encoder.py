@@ -6,11 +6,9 @@ extraction pipeline from a trained encoder-decoder checkpoint.
 
 from __future__ import annotations
 
-import json
 import logging
-import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import torch
 from transformers import AutoTokenizer
