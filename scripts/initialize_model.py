@@ -17,9 +17,6 @@ from pathlib import Path
 
 import torch
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer
 from qwen3_encdec.weight_initialization import (
     initialize_from_qwen3,

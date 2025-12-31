@@ -20,16 +20,12 @@ import logging
 import sys
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 import torch
-from torch.utils.data import DataLoader
-
 from accelerate import Accelerator
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from data import UL2DataCollator, t5gemma2_config
+from data import UL2DataCollator, ul2_recommended_config
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer, Qwen3ForSeq2SeqLM
 from training.execution import PHASE_CONFIGS, TrainingPhase
 from training.monitor import TrainingMonitor, compute_gradient_norm
@@ -148,7 +144,7 @@ def run_validation(
             max_seq_length=2048,
         )
 
-    ul25_config = t5gemma2_config()
+    ul25_config = ul2_recommended_config()
     collator = UL2DataCollator(
         tokenizer,
         config=ul25_config,

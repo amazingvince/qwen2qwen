@@ -16,12 +16,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 import numpy as np
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def check_basic_encoding(model, verbose: bool = True) -> bool:
