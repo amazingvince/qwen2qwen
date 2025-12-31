@@ -46,9 +46,8 @@ training:
   warmup_steps: 1000
   lr_scheduler_type: "cosine"
 
-  # Precision
+  # Precision (bf16 only)
   bf16: true
-  fp16: false
 
   # GPU Optimizations
   use_tf32: true  # TF32 for Ampere+ (up to 3x faster matmuls)

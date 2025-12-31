@@ -155,26 +155,6 @@ class TestEncoderDecoderIntegrationGPU:
 
         assert decoder_output.last_hidden_state.dtype == torch.bfloat16
 
-    def test_encoder_decoder_fp16(self, small_config):
-        """Test encoder-decoder with FP16 precision."""
-        encoder = Qwen3Encoder(small_config).cuda().to(torch.float16)
-        decoder = Qwen3Decoder(small_config).cuda().to(torch.float16)
-
-        batch_size = 2
-        enc_len = 8
-        dec_len = 4
-
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-        decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
-
-        encoder_output = encoder(encoder_input_ids)
-        decoder_output = decoder(
-            input_ids=decoder_input_ids,
-            encoder_hidden_states=encoder_output.last_hidden_state,
-        )
-
-        assert decoder_output.last_hidden_state.dtype == torch.float16
-
     def test_encoder_output_to_decoder_gpu(self, encoder_decoder_gpu, small_config):
         """Test encoder output correctly feeds to decoder cross-attention."""
         encoder, decoder = encoder_decoder_gpu
@@ -537,37 +517,6 @@ class TestAutoregressiveGenerationGPU:
                 )
 
                 assert decoder_output.last_hidden_state.dtype == torch.bfloat16
-
-                next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
-                decoder_input_ids = next_token
-                past_key_values = decoder_output.past_key_values
-
-    def test_generation_fp16_gpu(self, small_config):
-        """Test autoregressive generation in FP16."""
-        encoder = Qwen3Encoder(small_config).cuda().to(torch.float16).eval()
-        decoder = Qwen3Decoder(small_config).cuda().to(torch.float16).eval()
-
-        batch_size = 2
-        enc_len = 8
-        num_steps = 5
-
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-
-        with torch.no_grad():
-            encoder_output = encoder(encoder_input_ids)
-
-            decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.long, device="cuda")
-            past_key_values = None
-
-            for _ in range(num_steps):
-                decoder_output = decoder(
-                    input_ids=decoder_input_ids,
-                    encoder_hidden_states=encoder_output.last_hidden_state,
-                    past_key_values=past_key_values,
-                    use_cache=True,
-                )
-
-                assert decoder_output.last_hidden_state.dtype == torch.float16
 
                 next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
                 decoder_input_ids = next_token

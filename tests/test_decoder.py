@@ -454,7 +454,7 @@ class TestDecoderIntegration:
 
     def test_dtype_consistency(self, small_config, encoder_hidden):
         """Test decoder handles different dtypes."""
-        for dtype in [torch.float32, torch.float16]:
+        for dtype in [torch.float32, torch.bfloat16]:
             decoder = Qwen3Decoder(small_config).to(dtype)
             enc_hidden = encoder_hidden.to(dtype)
             input_ids = torch.randint(0, 100, (2, 8))
@@ -578,16 +578,6 @@ class TestDecoderGPU:
         output = decoder(input_ids, encoder_hidden_states=encoder_hidden)
 
         assert output.last_hidden_state.dtype == torch.bfloat16
-
-    def test_mixed_precision_fp16(self, gpu_config):
-        """Test FP16 forward pass on GPU."""
-        decoder = Qwen3Decoder(gpu_config).cuda().to(torch.float16)
-        input_ids = torch.randint(0, 100, (2, 8)).cuda()
-        encoder_hidden = torch.randn(2, 10, gpu_config.hidden_size).cuda().to(torch.float16)
-
-        output = decoder(input_ids, encoder_hidden_states=encoder_hidden)
-
-        assert output.last_hidden_state.dtype == torch.float16
 
     def test_sdpa_on_gpu(self, gpu_config):
         """Test SDPA path executes without error on GPU."""

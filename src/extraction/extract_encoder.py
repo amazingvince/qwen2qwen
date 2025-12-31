@@ -54,9 +54,6 @@ class EncoderExtractor:
     def load_encoder_decoder(self) -> Any:
         """Load the trained encoder-decoder model."""
         # Import here to avoid circular imports
-        import sys
-
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
         from qwen3_encdec import Qwen3ForSeq2SeqLM
 
         logger.info(f"Loading encoder-decoder from {self.checkpoint_path}")

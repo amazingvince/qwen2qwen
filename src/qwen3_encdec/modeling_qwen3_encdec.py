@@ -460,7 +460,7 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
 
                     # CCE computes loss directly from hidden states and lm_head weight
                     # This avoids materializing the full [batch*seq, vocab_size] logits tensor
-                    # CCE requires bf16 or fp16 for backward pass
+                    # CCE requires bf16 for backward pass
                     hidden_states = outputs.last_hidden_state
                     classifier_weight = self.lm_head.weight
                     if hidden_states.dtype == torch.float32:

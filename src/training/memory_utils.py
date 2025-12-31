@@ -70,14 +70,14 @@ def estimate_model_memory(
         seq_length: Sequence length.
         hidden_size: Model hidden dimension.
         num_layers: Number of transformer layers.
-        dtype: Model dtype (bfloat16, float16, float32).
+        dtype: Model dtype (bfloat16 or float32).
         optimizer: Optimizer type ("adamw" or "sgd").
         gradient_checkpointing: Whether gradient checkpointing is enabled.
 
     Returns:
         Dictionary with memory estimates in GB.
     """
-    bytes_per_param = 2 if dtype in (torch.float16, torch.bfloat16) else 4
+    bytes_per_param = 2 if dtype == torch.bfloat16 else 4
 
     # Model parameters
     model_memory = num_params * bytes_per_param / 1e9

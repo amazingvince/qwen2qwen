@@ -81,7 +81,6 @@ class TestTrainingConfig:
         assert config.learning_rate == 2e-4
         assert config.max_grad_norm == 1.0
         assert config.bf16 is True
-        assert config.fp16 is False
         assert config.warmup_steps == 1000
 
     def test_effective_batch_size(self):

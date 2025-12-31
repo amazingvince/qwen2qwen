@@ -101,7 +101,7 @@ class TestQwen3RMSNorm:
         hidden_size = 64
         norm = Qwen3RMSNorm(hidden_size)
 
-        for dtype in [torch.float32, torch.float16, torch.bfloat16]:
+        for dtype in [torch.float32, torch.bfloat16]:
             norm = norm.to(dtype)
             x = torch.randn(2, 10, hidden_size, dtype=dtype)
             output = norm(x)
@@ -651,7 +651,7 @@ class TestEncoderIntegration:
 
     def test_dtype_consistency(self, small_config):
         """Test encoder handles different dtypes."""
-        for dtype in [torch.float32, torch.float16]:
+        for dtype in [torch.float32, torch.bfloat16]:
             encoder = Qwen3Encoder(small_config).to(dtype)
             input_ids = torch.randint(0, 100, (1, 8))
 
@@ -772,16 +772,6 @@ class TestEncoderGPU:
         output = encoder(input_ids)
 
         assert output.last_hidden_state.dtype == torch.bfloat16
-        assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
-
-    def test_mixed_precision_fp16(self, gpu_config):
-        """Test FP16 forward pass on GPU."""
-        encoder = Qwen3Encoder(gpu_config).cuda().to(torch.float16)
-        input_ids = torch.randint(0, 100, (2, 16)).cuda()
-
-        output = encoder(input_ids)
-
-        assert output.last_hidden_state.dtype == torch.float16
         assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
 
     def test_sdpa_on_gpu(self, gpu_config):

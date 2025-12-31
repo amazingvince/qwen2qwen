@@ -44,7 +44,6 @@ training:
   lr_scheduler_type: "cosine"
 
   bf16: true
-  fp16: false
 
   # GPU Optimizations
   use_tf32: true

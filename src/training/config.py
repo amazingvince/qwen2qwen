@@ -80,9 +80,8 @@ class TrainingConfig:
     warmup_steps: int = 1000
     lr_scheduler_type: str = "cosine"
 
-    # Precision
+    # Precision (bf16 only - fp16 not supported)
     bf16: bool = True
-    fp16: bool = False
 
     # GPU Optimizations
     use_tf32: bool = True  # Enable TF32 for matmuls (Ampere+)

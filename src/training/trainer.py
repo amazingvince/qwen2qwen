@@ -106,11 +106,7 @@ class Qwen3EncoderDecoderTrainer:
 
         self.accelerator = Accelerator(
             gradient_accumulation_steps=config.training.gradient_accumulation_steps,
-            mixed_precision=(
-                "bf16"
-                if config.training.bf16
-                else ("fp16" if config.training.fp16 else "no")
-            ),
+            mixed_precision="bf16" if config.training.bf16 else "no",
             log_with=config.training.report_to if config.training.report_to else None,
             project_config=project_config,
         )
@@ -244,11 +240,7 @@ class Qwen3EncoderDecoderTrainer:
             )
             return
 
-        dtype = torch.float32
-        if self.config.training.bf16:
-            dtype = torch.bfloat16
-        elif self.config.training.fp16:
-            dtype = torch.float16
+        dtype = torch.bfloat16 if self.config.training.bf16 else torch.float32
 
         device = self.accelerator.device
         q = torch.zeros((1, num_heads, 4, head_dim), device=device, dtype=dtype)
