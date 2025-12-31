@@ -8,11 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from qwen3_encdec.tokenization_qwen3_encdec import (
-    SENTINEL_TOKEN_TEMPLATE,
-    Qwen3EncoderDecoderTokenizer,
-    apply_sentinel_corruption,
-    create_sentinel_sequence,
-)
+    SENTINEL_TOKEN_TEMPLATE, Qwen3EncoderDecoderTokenizer,
+    apply_sentinel_corruption, create_sentinel_sequence)
 
 
 class TestQwen3EncoderDecoderTokenizer:

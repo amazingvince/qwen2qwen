@@ -24,12 +24,12 @@ import torch
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+from UL2_5.config import UL25Config
 
 from data import UL2DataCollator, ul2_recommended_config
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer, Qwen3ForSeq2SeqLM
 from training.execution import PHASE_CONFIGS, TrainingPhase
 from training.monitor import TrainingMonitor, compute_gradient_norm
-from UL2_5.config import UL25Config
 
 logging.basicConfig(
     level=logging.INFO,

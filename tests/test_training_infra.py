@@ -6,18 +6,9 @@ from pathlib import Path
 import pytest
 import torch
 
-from src.training import (
-    DataConfig,
-    FullConfig,
-    InfraConfig,
-    ModelConfig,
-    TrainingConfig,
-    TrainingState,
-    clear_memory,
-    estimate_model_memory,
-    get_memory_stats,
-)
-
+from src.training import (DataConfig, FullConfig, InfraConfig, ModelConfig,
+                          TrainingConfig, TrainingState, clear_memory,
+                          estimate_model_memory, get_memory_stats)
 
 # =============================================================================
 # Test Configurations

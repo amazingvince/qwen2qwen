@@ -7,15 +7,9 @@ import pytest
 import torch
 import torch.nn as nn
 
-from qwen3_encdec import (
-    Qwen3Decoder,
-    Qwen3Encoder,
-    Qwen3EncoderDecoderConfig,
-    Qwen3EncoderModel,
-    Qwen3ForSeq2SeqLM,
-    Qwen3Seq2SeqModel,
-)
-
+from qwen3_encdec import (Qwen3Decoder, Qwen3Encoder,
+                          Qwen3EncoderDecoderConfig, Qwen3EncoderModel,
+                          Qwen3ForSeq2SeqLM, Qwen3Seq2SeqModel)
 
 # =============================================================================
 # Fixtures

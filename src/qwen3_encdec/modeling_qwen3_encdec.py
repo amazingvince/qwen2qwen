@@ -16,11 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 from transformers import GenerationMixin, PreTrainedModel
-from transformers.modeling_outputs import (
-    BaseModelOutput,
-    ModelOutput,
-    Seq2SeqLMOutput,
-)
+from transformers.modeling_outputs import BaseModelOutput, ModelOutput, Seq2SeqLMOutput
 from transformers.utils import logging
 
 from .configuration_qwen3_encdec import Qwen3EncoderDecoderConfig

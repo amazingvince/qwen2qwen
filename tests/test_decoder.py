@@ -5,13 +5,10 @@ import torch
 import torch.nn as nn
 
 from qwen3_encdec import Qwen3EncoderDecoderConfig
-from qwen3_encdec.modeling_qwen3_decoder import (
-    Qwen3Decoder,
-    Qwen3DecoderLayer,
-    Qwen3DecoderOutput,
-    Qwen3MergedAttention,
-)
-
+from qwen3_encdec.modeling_qwen3_decoder import (Qwen3Decoder,
+                                                 Qwen3DecoderLayer,
+                                                 Qwen3DecoderOutput,
+                                                 Qwen3MergedAttention)
 
 # =============================================================================
 # Fixtures

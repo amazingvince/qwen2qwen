@@ -11,12 +11,7 @@ import gc
 import pytest
 import torch
 
-from qwen3_encdec import (
-    Qwen3Decoder,
-    Qwen3Encoder,
-    Qwen3EncoderDecoderConfig,
-)
-
+from qwen3_encdec import Qwen3Decoder, Qwen3Encoder, Qwen3EncoderDecoderConfig
 
 # Skip all tests if CUDA is not available
 pytestmark = pytest.mark.skipif(

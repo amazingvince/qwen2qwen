@@ -7,13 +7,10 @@ import pytest
 import torch
 
 from src.qwen3_encdec import Qwen3EncoderDecoderConfig
-from src.qwen3_encdec.encoder_only import (
-    Qwen3EncoderConfig,
-    Qwen3EncoderPooler,
-    Qwen3EncoderPoolerOutput,
-    Qwen3StandaloneEncoderModel,
-)
-
+from src.qwen3_encdec.encoder_only import (Qwen3EncoderConfig,
+                                           Qwen3EncoderPooler,
+                                           Qwen3EncoderPoolerOutput,
+                                           Qwen3StandaloneEncoderModel)
 
 # =============================================================================
 # Test Qwen3EncoderConfig
@@ -436,10 +433,10 @@ class TestSentenceTransformersExport:
 
     def test_create_config(self):
         """Test creating sentence-transformers config."""
-        from src.extraction.sentence_transformers_export import (
-            create_sentence_transformers_config,
-        )
         import json
+
+        from src.extraction.sentence_transformers_export import \
+            create_sentence_transformers_config
 
         with tempfile.TemporaryDirectory() as tmpdir:
             create_sentence_transformers_config(
@@ -469,10 +466,10 @@ class TestSentenceTransformersExport:
 
     def test_create_config_without_normalize(self):
         """Test creating config without normalization."""
-        from src.extraction.sentence_transformers_export import (
-            create_sentence_transformers_config,
-        )
         import json
+
+        from src.extraction.sentence_transformers_export import \
+            create_sentence_transformers_config
 
         with tempfile.TemporaryDirectory() as tmpdir:
             create_sentence_transformers_config(

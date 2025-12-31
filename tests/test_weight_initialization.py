@@ -8,11 +8,8 @@ import pytest
 import torch
 
 from src.qwen3_encdec import Qwen3EncoderDecoderConfig, Qwen3ForSeq2SeqLM
-from src.qwen3_encdec.weight_initialization import (
-    Qwen3WeightMapper,
-    verify_gradient_flow,
-)
-
+from src.qwen3_encdec.weight_initialization import (Qwen3WeightMapper,
+                                                    verify_gradient_flow)
 
 # =============================================================================
 # Fixtures

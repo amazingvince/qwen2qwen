@@ -7,20 +7,15 @@ import torch
 import torch.nn as nn
 
 from qwen3_encdec import Qwen3EncoderDecoderConfig
-from qwen3_encdec.modeling_qwen3_encoder import (
-    Qwen3Encoder,
-    Qwen3EncoderAttention,
-    Qwen3EncoderLayer,
-    Qwen3EncoderModel,
-    Qwen3EncoderOutput,
-    Qwen3MLP,
-    Qwen3RMSNorm,
-    Qwen3RotaryEmbedding,
-    apply_rotary_pos_emb,
-    repeat_kv,
-    rotate_half,
-)
-
+from qwen3_encdec.modeling_qwen3_encoder import (Qwen3Encoder,
+                                                 Qwen3EncoderAttention,
+                                                 Qwen3EncoderLayer,
+                                                 Qwen3EncoderModel,
+                                                 Qwen3EncoderOutput, Qwen3MLP,
+                                                 Qwen3RMSNorm,
+                                                 Qwen3RotaryEmbedding,
+                                                 apply_rotary_pos_emb,
+                                                 repeat_kv, rotate_half)
 
 # =============================================================================
 # Fixtures

@@ -9,9 +9,7 @@ import pytest
 # Try to import the tokenizer, skip all tests if it fails
 try:
     from qwen3_encdec.tokenization_qwen3_encdec import (
-        Qwen3EncoderDecoderTokenizer,
-        apply_sentinel_corruption,
-    )
+        Qwen3EncoderDecoderTokenizer, apply_sentinel_corruption)
 
     TOKENIZER_AVAILABLE = True
 except ImportError:
