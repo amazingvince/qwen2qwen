@@ -79,11 +79,13 @@ class Qwen3EncoderDecoderTrainer:
         # Enable TF32 for Ampere+ GPUs (up to 3x faster matmuls)
         if getattr(config.training, "use_tf32", True):
             from .optimizations import setup_tf32
+
             setup_tf32()
 
         # Apply Liger kernels before accelerator.prepare()
         if getattr(config.training, "use_liger_kernels", True):
             from .optimizations import apply_liger_kernels
+
             model = apply_liger_kernels(model, model.config)
 
         # Optional torch.compile (10-20% speedup, slower startup)
@@ -184,11 +186,7 @@ class Qwen3EncoderDecoderTrainer:
                 continue
 
             # No weight decay for biases and LayerNorm/RMSNorm
-            if (
-                "bias" in name
-                or "layernorm" in name.lower()
-                or "norm" in name.lower()
-            ):
+            if "bias" in name or "layernorm" in name.lower() or "norm" in name.lower():
                 no_decay_params.append(param)
             else:
                 decay_params.append(param)
@@ -232,9 +230,8 @@ class Qwen3EncoderDecoderTrainer:
             )
 
         cfg = getattr(model, "config", None)
-        num_heads = (
-            getattr(cfg, "num_attention_heads", None)
-            or getattr(cfg, "num_heads", None)
+        num_heads = getattr(cfg, "num_attention_heads", None) or getattr(
+            cfg, "num_heads", None
         )
         head_dim = getattr(cfg, "head_dim", None)
         if head_dim is None and num_heads and getattr(cfg, "hidden_size", None):
@@ -342,6 +339,7 @@ class Qwen3EncoderDecoderTrainer:
                 if wandb_watch and "wandb" in self.config.training.report_to:
                     try:
                         import wandb
+
                         wandb.watch(
                             self.model,
                             log=wandb_watch,
@@ -390,6 +388,7 @@ class Qwen3EncoderDecoderTrainer:
         step_tokens = 0  # Track tokens for throughput calculation
         step_samples = 0  # Track samples for throughput calculation
         import time
+
         last_log_time = time.time()
         last_grad_norm = None
 
@@ -477,7 +476,8 @@ class Qwen3EncoderDecoderTrainer:
                                 ),
                                 "train/curriculum_progress": (
                                     self._collator.progress
-                                    if self._collator and hasattr(self._collator, "progress")
+                                    if self._collator
+                                    and hasattr(self._collator, "progress")
                                     else None
                                 ),
                             },
@@ -609,7 +609,9 @@ class Qwen3EncoderDecoderTrainer:
                 self.checkpoint_paths.append(output_dir)
 
                 # Keep only last N checkpoints
-                while len(self.checkpoint_paths) > self.config.training.save_total_limit:
+                while (
+                    len(self.checkpoint_paths) > self.config.training.save_total_limit
+                ):
                     old_path = self.checkpoint_paths.pop(0)
                     if old_path.exists():
                         shutil.rmtree(old_path)

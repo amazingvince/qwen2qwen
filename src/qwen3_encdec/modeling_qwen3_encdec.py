@@ -202,8 +202,12 @@ class Qwen3Seq2SeqModel(Qwen3Seq2SeqPreTrainedModel):
         """
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else True
-        output_attentions = output_attentions if output_attentions is not None else False
-        output_hidden_states = output_hidden_states if output_hidden_states is not None else False
+        output_attentions = (
+            output_attentions if output_attentions is not None else False
+        )
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else False
+        )
 
         # Encode if encoder_outputs not provided
         if encoder_outputs is None:
@@ -419,7 +423,11 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
 
         # Prepare decoder inputs from labels if needed
-        if labels is not None and decoder_input_ids is None and decoder_inputs_embeds is None:
+        if (
+            labels is not None
+            and decoder_input_ids is None
+            and decoder_inputs_embeds is None
+        ):
             decoder_input_ids = self._shift_right(labels)
 
         # Get decoder hidden states from base model
@@ -636,8 +644,8 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
 
         # Copy old weights
         num_tokens_to_copy = min(old_num_tokens, new_num_tokens)
-        new_embeddings.weight.data[:num_tokens_to_copy] = (
-            old_embeddings.weight.data[:num_tokens_to_copy]
-        )
+        new_embeddings.weight.data[:num_tokens_to_copy] = old_embeddings.weight.data[
+            :num_tokens_to_copy
+        ]
 
         return new_embeddings

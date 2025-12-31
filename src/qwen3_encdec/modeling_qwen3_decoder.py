@@ -131,7 +131,9 @@ class Qwen3MergedAttention(nn.Module):
         encoder_attention_mask: Optional[torch.Tensor] = None,
         decoder_position_ids: Optional[torch.LongTensor] = None,
         encoder_position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]] = None,
+        past_key_value: Optional[
+            Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]
+        ] = None,
         use_cache: bool = False,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple]]:
@@ -163,16 +165,22 @@ class Qwen3MergedAttention(nn.Module):
             # Cache format: (dec_k, dec_v, enc_k, enc_v)
             if past_key_value is not None:
                 past_dec_len = past_key_value[0].shape[2]
-                decoder_position_ids = torch.arange(
-                    past_dec_len, past_dec_len + dec_len, device=device
-                ).unsqueeze(0).expand(batch_size, -1)
+                decoder_position_ids = (
+                    torch.arange(past_dec_len, past_dec_len + dec_len, device=device)
+                    .unsqueeze(0)
+                    .expand(batch_size, -1)
+                )
             else:
                 decoder_position_ids = torch.arange(dec_len, device=device)
-                decoder_position_ids = decoder_position_ids.unsqueeze(0).expand(batch_size, -1)
+                decoder_position_ids = decoder_position_ids.unsqueeze(0).expand(
+                    batch_size, -1
+                )
 
         if encoder_position_ids is None:
             encoder_position_ids = torch.arange(enc_len, device=device)
-            encoder_position_ids = encoder_position_ids.unsqueeze(0).expand(batch_size, -1)
+            encoder_position_ids = encoder_position_ids.unsqueeze(0).expand(
+                batch_size, -1
+            )
 
         # === Compute Q from decoder ===
         query_states = self.q_proj(decoder_hidden_states)
@@ -193,7 +201,11 @@ class Qwen3MergedAttention(nn.Module):
 
         # For encoder portion (only compute if not cached)
         # Cache format: (dec_k, dec_v, enc_k, enc_v)
-        encoder_kv_cached = past_key_value is not None and len(past_key_value) > 2 and past_key_value[2] is not None
+        encoder_kv_cached = (
+            past_key_value is not None
+            and len(past_key_value) > 2
+            and past_key_value[2] is not None
+        )
         if encoder_kv_cached:
             # Encoder KV is cached (already has QK-Norm applied)
             enc_key_states = past_key_value[2]
@@ -227,7 +239,9 @@ class Qwen3MergedAttention(nn.Module):
         if not encoder_kv_cached:
             enc_cos, enc_sin = self.rotary_emb(enc_key_states, encoder_position_ids)
             # Only apply to keys (no query for encoder)
-            enc_key_states = (enc_key_states * enc_cos) + (self._rotate_half(enc_key_states) * enc_sin)
+            enc_key_states = (enc_key_states * enc_cos) + (
+                self._rotate_half(enc_key_states) * enc_sin
+            )
 
         # === Handle KV Cache ===
         # Cache format: (dec_k, dec_v, enc_k, enc_v)
@@ -283,7 +297,9 @@ class Qwen3MergedAttention(nn.Module):
 
         # === Output projection ===
         attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.view(batch_size, dec_len, self.num_heads * self.head_dim)
+        attn_output = attn_output.view(
+            batch_size, dec_len, self.num_heads * self.head_dim
+        )
         attn_output = self.o_proj(attn_output)
 
         return attn_output, attn_weights, past_key_value if use_cache else None
@@ -318,8 +334,7 @@ class Qwen3MergedAttention(nn.Module):
 
         # Start with zeros (attend everywhere)
         mask = torch.zeros(
-            batch_size, 1, query_len, total_kv_len,
-            dtype=dtype, device=device
+            batch_size, 1, query_len, total_kv_len, dtype=dtype, device=device
         )
 
         # === Causal mask for decoder-to-decoder ===
@@ -328,7 +343,7 @@ class Qwen3MergedAttention(nn.Module):
             # Position i can attend to positions 0..i
             causal_mask = torch.triu(
                 torch.ones(query_len, cached_dec_len, device=device, dtype=dtype),
-                diagonal=1
+                diagonal=1,
             )
             mask[:, :, :, :cached_dec_len] = causal_mask * torch.finfo(dtype).min
         else:
@@ -353,7 +368,9 @@ class Qwen3MergedAttention(nn.Module):
             dec_mask = dec_mask[:, None, None, :]  # [batch, 1, 1, dec_len]
             # Only apply to the current decoder portion
             if cached_dec_len == query_len:
-                mask[:, :, :, :cached_dec_len] = mask[:, :, :, :cached_dec_len] + dec_mask
+                mask[:, :, :, :cached_dec_len] = (
+                    mask[:, :, :, :cached_dec_len] + dec_mask
+                )
 
         return mask
 
@@ -390,7 +407,9 @@ class Qwen3MergedAttention(nn.Module):
         attn_weights = attn_weights + attn_mask
 
         # Softmax and dropout
-        attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+        attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
+            query.dtype
+        )
         if self.training and self.config.attention_dropout > 0:
             attn_weights = F.dropout(attn_weights, p=self.config.attention_dropout)
 
@@ -510,7 +529,11 @@ class Qwen3DecoderPreTrainedModel(PreTrainedModel):
 
     def _init_weights(self, module: nn.Module) -> None:
         """Initialize weights following Qwen3 conventions."""
-        std = self.config.initializer_range if hasattr(self.config, "initializer_range") else 0.02
+        std = (
+            self.config.initializer_range
+            if hasattr(self.config, "initializer_range")
+            else 0.02
+        )
 
         if isinstance(module, nn.Linear):
             module.weight.data.normal_(mean=0.0, std=std)
@@ -542,7 +565,10 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
 
         # Decoder layers
         self.layers = nn.ModuleList(
-            [Qwen3DecoderLayer(config, layer_idx=i) for i in range(config.num_hidden_layers)]
+            [
+                Qwen3DecoderLayer(config, layer_idx=i)
+                for i in range(config.num_hidden_layers)
+            ]
         )
 
         # Final layer norm
@@ -627,16 +653,20 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
                 # Incremental decoding: offset by cached length
                 # past_key_values[0][0] is the decoder key for the first layer
                 past_length = past_key_values[0][0].shape[2]
-                position_ids = torch.arange(
-                    past_length, past_length + dec_len, device=device
-                ).unsqueeze(0).expand(batch_size, -1)
+                position_ids = (
+                    torch.arange(past_length, past_length + dec_len, device=device)
+                    .unsqueeze(0)
+                    .expand(batch_size, -1)
+                )
             else:
                 position_ids = torch.arange(dec_len, device=device)
                 position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
 
         if encoder_position_ids is None:
             encoder_position_ids = torch.arange(enc_len, device=device)
-            encoder_position_ids = encoder_position_ids.unsqueeze(0).expand(batch_size, -1)
+            encoder_position_ids = encoder_position_ids.unsqueeze(0).expand(
+                batch_size, -1
+            )
 
         hidden_states = inputs_embeds
 
@@ -655,7 +685,11 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
             if past_key_values is not None:
                 layer_cache = past_key_values[idx]
                 # Check if it's an empty cache (all Nones)
-                if layer_cache is not None and len(layer_cache) > 0 and layer_cache[0] is None:
+                if (
+                    layer_cache is not None
+                    and len(layer_cache) > 0
+                    and layer_cache[0] is None
+                ):
                     past_key_value = None
                 else:
                     past_key_value = layer_cache
@@ -663,17 +697,19 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
                 past_key_value = None
 
             if self.gradient_checkpointing and self.training:
-                hidden_states, attn_weights, present_key_value = self._gradient_checkpointing_func(
-                    layer.__call__,
-                    hidden_states,
-                    encoder_hidden_states,
-                    attention_mask,
-                    encoder_attention_mask,
-                    position_ids,
-                    encoder_position_ids,
-                    past_key_value,
-                    use_cache,
-                    output_attentions,
+                hidden_states, attn_weights, present_key_value = (
+                    self._gradient_checkpointing_func(
+                        layer.__call__,
+                        hidden_states,
+                        encoder_hidden_states,
+                        attention_mask,
+                        encoder_attention_mask,
+                        position_ids,
+                        encoder_position_ids,
+                        past_key_value,
+                        use_cache,
+                        output_attentions,
+                    )
                 )
             else:
                 hidden_states, attn_weights, present_key_value = layer(
@@ -702,7 +738,13 @@ class Qwen3Decoder(Qwen3DecoderPreTrainedModel):
 
         if not return_dict:
             return tuple(
-                v for v in [hidden_states, next_decoder_cache, all_hidden_states, all_attentions]
+                v
+                for v in [
+                    hidden_states,
+                    next_decoder_cache,
+                    all_hidden_states,
+                    all_attentions,
+                ]
                 if v is not None
             )
 

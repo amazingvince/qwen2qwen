@@ -289,9 +289,7 @@ def run_validation(
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Run validation training on the model"
-    )
+    parser = argparse.ArgumentParser(description="Run validation training on the model")
     parser.add_argument(
         "--model-path",
         type=str,

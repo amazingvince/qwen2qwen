@@ -133,7 +133,9 @@ def _infer_ul25_sentinel_start_id(tokenizer: Any) -> int:
     # Tertiary: probe tokens via convert_tokens_to_ids
     unk_id = getattr(tokenizer, "unk_token_id", None)
     last_token = (
-        f"<extra_id_{num_sentinels - 1}>" if isinstance(num_sentinels, int) else "<extra_id_99>"
+        f"<extra_id_{num_sentinels - 1}>"
+        if isinstance(num_sentinels, int)
+        else "<extra_id_99>"
     )
 
     candidate_ids: List[int] = []
@@ -199,7 +201,9 @@ class UL2DataCollator:
         elif getattr(tokenizer, "bos_token_id", None) is not None:
             self.decoder_start_token_id = int(tokenizer.bos_token_id)
         else:
-            self.decoder_start_token_id = int(getattr(tokenizer, "pad_token_id", 0) or 0)
+            self.decoder_start_token_id = int(
+                getattr(tokenizer, "pad_token_id", 0) or 0
+            )
 
         self._impl = _UL25DataCollator(
             _TokenizerShim(tokenizer),

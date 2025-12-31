@@ -5,7 +5,12 @@ the extracted encoder on embedding tasks.
 """
 
 from .baseline_comparison import BaselineComparison, DecoderPoolWrapper, ModelInfo
-from .mteb_eval import MTEBConfig, MTEBEvaluator, Qwen3EncoderWrapper, run_mteb_evaluation
+from .mteb_eval import (
+    MTEBConfig,
+    MTEBEvaluator,
+    Qwen3EncoderWrapper,
+    run_mteb_evaluation,
+)
 from .retrieval_eval import RetrievalEvaluator, RetrievalResult
 from .similarity_eval import STSEvaluator, STSResult
 

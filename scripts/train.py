@@ -97,9 +97,7 @@ def create_streaming_dataset(dataset_name, tokenizer, config):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Train Qwen3 Encoder-Decoder model"
-    )
+    parser = argparse.ArgumentParser(description="Train Qwen3 Encoder-Decoder model")
     parser.add_argument(
         "--config",
         type=str,
@@ -145,15 +143,20 @@ def main():
     is_encdec = False
     if config_file and config_file.exists():
         import json
+
         with open(config_file) as f:
             model_config = json.load(f)
         is_encdec = model_config.get("model_type") == "qwen3_encdec"
 
     if is_encdec:
-        logger.info(f"Loading pre-initialized model from {config.model.model_name_or_path}...")
+        logger.info(
+            f"Loading pre-initialized model from {config.model.model_name_or_path}..."
+        )
         model = Qwen3ForSeq2SeqLM.from_pretrained(config.model.model_name_or_path)
     else:
-        logger.info(f"Initializing model from Qwen3 checkpoint {config.model.model_name_or_path}...")
+        logger.info(
+            f"Initializing model from Qwen3 checkpoint {config.model.model_name_or_path}..."
+        )
         model = initialize_from_qwen3(
             config.model.model_name_or_path,
             num_sentinel_tokens=config.model.num_sentinel_tokens,

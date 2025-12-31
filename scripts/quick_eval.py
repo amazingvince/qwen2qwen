@@ -107,7 +107,7 @@ def check_semantic_similarity(model, verbose: bool = True) -> bool:
             if verbose:
                 status = "✓" if passed else "✗"
                 print(f"\n  Case {i + 1}:")
-                print(f"    Anchor: \"{case['anchor'][:40]}...\"")
+                print(f'    Anchor: "{case["anchor"][:40]}..."')
                 print(f"    Similar: {sim_similar:.4f}")
                 print(f"    Dissimilar: {sim_dissimilar:.4f}")
                 print(f"    {status} Similar > Dissimilar: {passed}")

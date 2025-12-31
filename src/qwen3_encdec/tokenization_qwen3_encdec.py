@@ -57,7 +57,9 @@ class Qwen3EncoderDecoderTokenizer:
         # If provided (from sentinel_config.json), use that value
         # Otherwise compute from current tokenizer length
         self.original_vocab_size = (
-            _original_vocab_size if _original_vocab_size is not None else len(base_tokenizer)
+            _original_vocab_size
+            if _original_vocab_size is not None
+            else len(base_tokenizer)
         )
 
         # Add sentinel tokens
@@ -85,8 +87,7 @@ class Qwen3EncoderDecoderTokenizer:
     def _add_sentinel_tokens(self) -> None:
         """Add sentinel tokens to the tokenizer vocabulary."""
         sentinel_tokens = [
-            SENTINEL_TOKEN_TEMPLATE.format(i=i)
-            for i in range(self.num_sentinel_tokens)
+            SENTINEL_TOKEN_TEMPLATE.format(i=i) for i in range(self.num_sentinel_tokens)
         ]
 
         # Add as special tokens
@@ -307,7 +308,12 @@ class Qwen3EncoderDecoderTokenizer:
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to base tokenizer."""
         # Avoid infinite recursion for base_tokenizer itself
-        if name in ("base_tokenizer", "_sentinel_tokens", "_sentinel_token_ids", "_id_to_sentinel_index"):
+        if name in (
+            "base_tokenizer",
+            "_sentinel_tokens",
+            "_sentinel_token_ids",
+            "_id_to_sentinel_index",
+        ):
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )

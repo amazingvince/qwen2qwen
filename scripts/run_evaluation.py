@@ -126,7 +126,9 @@ def run_sts_evaluation(
     # Print summary
     logger.info("\nSTS Results:")
     for name, result in results.items():
-        logger.info(f"  {name}: spearman={result.spearman:.4f}, pearson={result.pearson:.4f}")
+        logger.info(
+            f"  {name}: spearman={result.spearman:.4f}, pearson={result.pearson:.4f}"
+        )
 
     return {"results": results}
 
@@ -361,7 +363,15 @@ def main():
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     # Check if any evaluation is requested
-    if not any([args.run_mteb, args.run_sts, args.run_retrieval, args.compare_baselines, args.run_all]):
+    if not any(
+        [
+            args.run_mteb,
+            args.run_sts,
+            args.run_retrieval,
+            args.compare_baselines,
+            args.run_all,
+        ]
+    ):
         parser.error("At least one evaluation type must be specified")
 
     results = {}

@@ -293,9 +293,7 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
 
         missing = [attr for attr in required_attrs if not hasattr(qwen3_config, attr)]
         if missing:
-            raise ValueError(
-                f"qwen3_config is missing required attributes: {missing}"
-            )
+            raise ValueError(f"qwen3_config is missing required attributes: {missing}")
 
         # Extract relevant parameters from Qwen3 config
         config_dict: Dict[str, Any] = {
@@ -303,7 +301,9 @@ class Qwen3EncoderDecoderConfig(PretrainedConfig):
             "num_hidden_layers": qwen3_config.num_hidden_layers,
             "num_attention_heads": qwen3_config.num_attention_heads,
             "num_key_value_heads": qwen3_config.num_key_value_heads,
-            "head_dim": getattr(qwen3_config, "head_dim", None),  # Qwen3 may have explicit head_dim
+            "head_dim": getattr(
+                qwen3_config, "head_dim", None
+            ),  # Qwen3 may have explicit head_dim
             "intermediate_size": qwen3_config.intermediate_size,
             "hidden_act": qwen3_config.hidden_act,
             "rms_norm_eps": qwen3_config.rms_norm_eps,

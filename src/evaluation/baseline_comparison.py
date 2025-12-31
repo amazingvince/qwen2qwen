@@ -92,7 +92,9 @@ class DecoderPoolWrapper:
                 # Apply pooling
                 if self.pooling == "mean":
                     attention_mask = inputs["attention_mask"].unsqueeze(-1)
-                    embeddings = (hidden_states * attention_mask).sum(1) / attention_mask.sum(1)
+                    embeddings = (hidden_states * attention_mask).sum(
+                        1
+                    ) / attention_mask.sum(1)
                 elif self.pooling == "last":
                     # Get last non-padded token
                     seq_lengths = inputs["attention_mask"].sum(1) - 1
@@ -214,7 +216,7 @@ class BaselineComparison:
         results = {}
 
         for name, model in self.models.items():
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Evaluating: {name}")
             print("=" * 60)
 
@@ -235,7 +237,7 @@ class BaselineComparison:
         results = {}
 
         for name, model in self.models.items():
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Evaluating: {name}")
             print("=" * 60)
 
@@ -299,13 +301,16 @@ class BaselineComparison:
 
         if "sts" in self.results:
             output["results"]["sts"] = {
-                model: {dataset: asdict(result) for dataset, result in model_results.items()}
+                model: {
+                    dataset: asdict(result) for dataset, result in model_results.items()
+                }
                 for model, model_results in self.results["sts"].items()
             }
 
         if "retrieval" in self.results:
             output["results"]["retrieval"] = {
-                model: asdict(result) for model, result in self.results["retrieval"].items()
+                model: asdict(result)
+                for model, result in self.results["retrieval"].items()
             }
 
         with open(output_path, "w") as f:

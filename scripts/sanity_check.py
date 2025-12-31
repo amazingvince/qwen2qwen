@@ -253,9 +253,7 @@ def run_sanity_check(model_path: str, device: str = "cuda") -> Dict[str, Any]:
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Run sanity checks on a trained model"
-    )
+    parser = argparse.ArgumentParser(description="Run sanity checks on a trained model")
     parser.add_argument(
         "--model-path",
         type=str,

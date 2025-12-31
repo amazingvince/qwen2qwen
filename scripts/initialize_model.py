@@ -138,7 +138,9 @@ def main():
     # Update config with special token IDs for generation
     model.config.pad_token_id = tokenizer.pad_token_id
     model.config.eos_token_id = tokenizer.eos_token_id
-    model.config.decoder_start_token_id = tokenizer.pad_token_id  # Use pad as decoder start
+    model.config.decoder_start_token_id = (
+        tokenizer.pad_token_id
+    )  # Use pad as decoder start
     model.config.save_pretrained(output_path)
 
     # Save initialization info

@@ -391,7 +391,9 @@ class Qwen3EncoderAttention(nn.Module):
 
         # Reshape back to [batch, seq_len, num_heads * head_dim]
         attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.view(batch_size, seq_len, self.num_heads * self.head_dim)
+        attn_output = attn_output.view(
+            batch_size, seq_len, self.num_heads * self.head_dim
+        )
 
         # Output projection
         attn_output = self.o_proj(attn_output)
@@ -516,7 +518,9 @@ class Qwen3MLP(nn.Module):
         Returns:
             Output tensor of same shape.
         """
-        return self.down_proj(self.act_fn(self.gate_proj(hidden_states)) * self.up_proj(hidden_states))
+        return self.down_proj(
+            self.act_fn(self.gate_proj(hidden_states)) * self.up_proj(hidden_states)
+        )
 
 
 # =============================================================================
@@ -605,7 +609,11 @@ class Qwen3EncoderPreTrainedModel(PreTrainedModel):
 
     def _init_weights(self, module: nn.Module) -> None:
         """Initialize weights following Qwen3 conventions."""
-        std = self.config.initializer_range if hasattr(self.config, "initializer_range") else 0.02
+        std = (
+            self.config.initializer_range
+            if hasattr(self.config, "initializer_range")
+            else 0.02
+        )
 
         if isinstance(module, nn.Linear):
             module.weight.data.normal_(mean=0.0, std=std)
@@ -637,7 +645,10 @@ class Qwen3Encoder(Qwen3EncoderPreTrainedModel):
             config.vocab_size, config.hidden_size, padding_idx=self.padding_idx
         )
         self.layers = nn.ModuleList(
-            [Qwen3EncoderLayer(config, layer_idx=i) for i in range(config.num_hidden_layers)]
+            [
+                Qwen3EncoderLayer(config, layer_idx=i)
+                for i in range(config.num_hidden_layers)
+            ]
         )
         self.norm = Qwen3RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
@@ -698,7 +709,11 @@ class Qwen3Encoder(Qwen3EncoderPreTrainedModel):
         # Create position_ids if not provided
         if position_ids is None:
             device = inputs_embeds.device
-            position_ids = torch.arange(seq_length, device=device).unsqueeze(0).expand(batch_size, -1)
+            position_ids = (
+                torch.arange(seq_length, device=device)
+                .unsqueeze(0)
+                .expand(batch_size, -1)
+            )
 
         hidden_states = inputs_embeds
 
@@ -739,7 +754,9 @@ class Qwen3Encoder(Qwen3EncoderPreTrainedModel):
 
         if not return_dict:
             return tuple(
-                v for v in [hidden_states, all_hidden_states, all_attentions] if v is not None
+                v
+                for v in [hidden_states, all_hidden_states, all_attentions]
+                if v is not None
             )
 
         return Qwen3EncoderOutput(

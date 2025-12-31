@@ -55,8 +55,7 @@ def apply_liger_kernels(model: nn.Module, config) -> nn.Module:
         from liger_kernel.transformers.swiglu import LigerSwiGLUMLP
     except ImportError:
         logger.warning(
-            "liger-kernel not installed. "
-            "Install with: pip install liger-kernel"
+            "liger-kernel not installed. Install with: pip install liger-kernel"
         )
         return model
 
@@ -104,6 +103,7 @@ def check_cce_available() -> bool:
     """Check if Cut Cross Entropy is available."""
     try:
         from cut_cross_entropy import linear_cross_entropy  # noqa: F401
+
         return True
     except ImportError:
         return False
