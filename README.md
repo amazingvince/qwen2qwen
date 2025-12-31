@@ -62,7 +62,8 @@ pip install mteb sentence-transformers faiss-cpu scipy scikit-learn
 - Python >= 3.9
 - PyTorch >= 2.0
 - Transformers >= 4.40.0
-- CUDA-capable GPU (recommended: 24GB+ VRAM for training)
+- CUDA GPU with BF16 support (Ampere or newer recommended)
+- 24GB+ VRAM for training (inference works on smaller GPUs)
 
 ## Quick Start
 
@@ -145,15 +146,20 @@ python scripts/run_evaluation.py \
 
 ### UL2 Denoising Tasks
 
-The training uses 5 denoising tasks with configurable weights (default 1:1:1:1:4):
+Training uses the UL2_5 library with `UL25Config.recommended()` for optimized denoising. The default mixture includes:
 
-| Task | Mean Span | Corruption | Description |
-|------|-----------|------------|-------------|
-| R-Denoiser 1 | 3 | 15% | Short spans, low corruption |
-| R-Denoiser 2 | 12 | 50% | Medium spans, high corruption |
-| X-Denoiser 1 | 32 | 15% | Long spans, low corruption |
-| X-Denoiser 2 | 32 | 50% | Long spans, high corruption |
-| S-Denoiser | N/A | 75% | Prefix-to-suffix (4x weight) |
+| Task | Type | Description |
+|------|------|-------------|
+| R-Denoisers | SPAN | Short/medium span corruption (regular denoising) |
+| X-Denoisers | SPAN | Long span corruption (extreme denoising) |
+| S-Denoisers | PREFIX | Prefix-to-suffix generation (sequential denoising) |
+| I-Denoiser | INFILLING | Text infilling (gap filling) |
+
+For curriculum learning (task weights shift during training):
+```python
+from data import ul2_recommended_with_curriculum_config
+config = ul2_recommended_with_curriculum_config()
+```
 
 ### Training Configuration
 
@@ -201,8 +207,10 @@ accelerate launch scripts/train.py --config configs/training_config.yaml
 The training infrastructure includes several memory optimizations:
 
 - **Gradient Checkpointing**: Enabled by default to reduce memory
-- **Mixed Precision**: BF16 training for faster computation
+- **BF16 Precision**: All training uses BF16 (FP16 is not supported)
 - **Streaming Data**: Load data on-the-fly without full materialization
+- **Cut Cross Entropy**: Memory-efficient loss computation (24GB → 1MB)
+- **Liger Kernels**: Optimized RMSNorm and SwiGLU MLP
 
 ## Encoder Extraction
 
