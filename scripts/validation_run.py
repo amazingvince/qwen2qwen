@@ -29,6 +29,7 @@ from data import UL2DataCollator, ul2_recommended_config
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer, Qwen3ForSeq2SeqLM
 from training.execution import PHASE_CONFIGS, TrainingPhase
 from training.monitor import TrainingMonitor, compute_gradient_norm
+from UL2_5.config import UL25Config
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,6 +97,65 @@ def create_streaming_dataset(dataset_name: str, tokenizer, max_seq_length: int =
     return dataset
 
 
+def visualize_collation_batch(
+    batch: dict,
+    tokenizer,
+    config: UL25Config,
+    num_samples: int = 3,
+) -> None:
+    """Print before/after collation examples to verify UL2 denoising."""
+    print("\n" + "=" * 70)
+    print("UL2 COLLATION VISUALIZATION")
+    print("=" * 70)
+
+    task_indices = batch.get("task_indices")
+
+    for i in range(min(num_samples, batch["input_ids"].shape[0])):
+        enc_ids = batch["input_ids"][i]
+        dec_ids = batch["decoder_input_ids"][i]
+        labels = batch["labels"][i]
+        enc_mask = batch["attention_mask"][i]
+
+        # Get task info if available
+        task_name = "unknown"
+        if task_indices is not None and i < len(task_indices):
+            task_idx = task_indices[i].item()
+            if task_idx < len(config.denoisers):
+                denoiser = config.denoisers[task_idx]
+                task_name = f"{denoiser.task.name} (prefix: {denoiser.prefix})"
+
+        # Count sentinels (vocab_size - 100 to vocab_size)
+        sentinel_min = tokenizer.vocab_size - 100
+        enc_sentinels = (
+            ((enc_ids >= sentinel_min) & (enc_ids < tokenizer.vocab_size)).sum().item()
+        )
+        dec_sentinels = (
+            ((dec_ids >= sentinel_min) & (dec_ids < tokenizer.vocab_size)).sum().item()
+        )
+
+        print(f"\n--- Sample {i} ---")
+        print(f"Task: {task_name}")
+        print(
+            f"Encoder: {enc_mask.sum().item()} valid tokens, {enc_sentinels} sentinels"
+        )
+        print(
+            f"Decoder: {(labels != -100).sum().item()} target tokens, "
+            f"{dec_sentinels} sentinels"
+        )
+
+        # Decode a snippet of encoder input
+        valid_enc = enc_ids[enc_mask == 1][:50]
+        enc_text = tokenizer.decode(valid_enc, skip_special_tokens=False)
+        print(f"Encoder snippet: {enc_text[:150]}...")
+
+        # Decode decoder input
+        valid_dec = dec_ids[dec_ids != tokenizer.pad_token_id][:30]
+        dec_text = tokenizer.decode(valid_dec, skip_special_tokens=False)
+        print(f"Decoder snippet: {dec_text[:150]}...")
+
+    print("\n" + "=" * 70 + "\n")
+
+
 def run_validation(
     model_path: str,
     output_dir: str,
@@ -150,6 +210,7 @@ def run_validation(
         config=ul25_config,
         max_length=1024,
         max_labels_length=512,
+        return_task_info=True,
     )
 
     dataloader = DataLoader(
@@ -158,6 +219,12 @@ def run_validation(
         collate_fn=collator,
         num_workers=2 if not use_dummy_data else 0,
     )
+
+    # Visualize first batch to verify UL2 collation is working
+    if accelerator.is_main_process:
+        logger.info("Visualizing first collated batch...")
+        sample_batch = next(iter(dataloader))
+        visualize_collation_batch(sample_batch, tokenizer, ul25_config, num_samples=3)
 
     # Setup optimizer
     optimizer = torch.optim.AdamW(
