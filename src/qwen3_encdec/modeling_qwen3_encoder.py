@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -30,6 +30,9 @@ from transformers.modeling_outputs import ModelOutput
 from transformers.utils import logging
 
 from .configuration_qwen3_encdec import Qwen3EncoderDecoderConfig
+
+if TYPE_CHECKING:
+    from .modeling_qwen3_encdec import Qwen3ForSeq2SeqLM
 
 logger = logging.get_logger(__name__)
 
