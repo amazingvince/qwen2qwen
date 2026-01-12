@@ -165,6 +165,19 @@ def main():
         num_sentinel_tokens=config.model.num_sentinel_tokens,
     )
 
+    # Resize model embeddings if tokenizer vocab is larger (e.g., UL2 prefix tokens added)
+    # Only resize up, not down - extra embedding rows are harmless but shrinking loses data
+    if len(tokenizer) > model.config.vocab_size:
+        logger.info(
+            f"Resizing embeddings: {model.config.vocab_size} -> {len(tokenizer)}"
+        )
+        model.resize_token_embeddings(len(tokenizer))
+    elif len(tokenizer) < model.config.vocab_size:
+        logger.info(
+            f"Tokenizer vocab ({len(tokenizer)}) < model vocab ({model.config.vocab_size}), "
+            "keeping model embeddings as-is"
+        )
+
     # Create dataset
     logger.info("Creating dataset...")
     if args.dummy_data:

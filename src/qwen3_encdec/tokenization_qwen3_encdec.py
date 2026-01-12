@@ -14,6 +14,9 @@ logger = logging.get_logger(__name__)
 # Sentinel token format (following T5 convention)
 SENTINEL_TOKEN_TEMPLATE = "<extra_id_{i}>"
 
+# UL2 task prefix tokens
+UL2_PREFIX_TOKENS = ["[R]", "[X]", "[S]", "[I]"]
+
 
 class Qwen3EncoderDecoderTokenizer:
     """
@@ -65,6 +68,9 @@ class Qwen3EncoderDecoderTokenizer:
         # Add sentinel tokens
         self._add_sentinel_tokens()
 
+        # Add UL2 prefix tokens as special tokens
+        self._add_ul2_prefix_tokens()
+
         # Create lookup dicts
         self._sentinel_tokens: Dict[int, str] = {
             i: SENTINEL_TOKEN_TEMPLATE.format(i=i) for i in range(num_sentinel_tokens)
@@ -86,9 +92,24 @@ class Qwen3EncoderDecoderTokenizer:
 
     def _add_sentinel_tokens(self) -> None:
         """Add sentinel tokens to the tokenizer vocabulary."""
+        if self.num_sentinel_tokens == 0:
+            return
+
         sentinel_tokens = [
             SENTINEL_TOKEN_TEMPLATE.format(i=i) for i in range(self.num_sentinel_tokens)
         ]
+
+        # Check if first sentinel already exists (indicates previously saved tokenizer)
+        first_sentinel = sentinel_tokens[0]
+        first_sentinel_id = self.base_tokenizer.convert_tokens_to_ids(first_sentinel)
+        unk_id = self.base_tokenizer.unk_token_id
+
+        # If first sentinel exists and isn't UNK, tokens were already added
+        if first_sentinel_id != unk_id:
+            logger.info(
+                f"Sentinel tokens already exist in vocabulary (first sentinel ID: {first_sentinel_id})"
+            )
+            return
 
         # Add as special tokens
         num_added = self.base_tokenizer.add_special_tokens(
@@ -100,6 +121,32 @@ class Qwen3EncoderDecoderTokenizer:
                 f"Expected to add {self.num_sentinel_tokens} sentinel tokens, "
                 f"but added {num_added}. Some tokens may already exist."
             )
+        else:
+            logger.info(f"Added {num_added} sentinel tokens to vocabulary")
+
+    def _add_ul2_prefix_tokens(self) -> None:
+        """Add UL2 task prefix tokens ([R], [X], [S], [I]) as special tokens."""
+        # Check if first prefix already exists
+        first_prefix = UL2_PREFIX_TOKENS[0]
+        first_prefix_id = self.base_tokenizer.convert_tokens_to_ids(first_prefix)
+        unk_id = self.base_tokenizer.unk_token_id
+
+        if first_prefix_id != unk_id:
+            logger.info(
+                f"UL2 prefix tokens already exist in vocabulary (first prefix ID: {first_prefix_id})"
+            )
+            return
+
+        # Get existing additional_special_tokens to avoid overwriting
+        existing = self.base_tokenizer.additional_special_tokens or []
+        new_tokens = [t for t in UL2_PREFIX_TOKENS if t not in existing]
+
+        if new_tokens:
+            num_added = self.base_tokenizer.add_special_tokens(
+                {"additional_special_tokens": existing + new_tokens}
+            )
+            if num_added > 0:
+                logger.info(f"Added {num_added} UL2 prefix tokens: {new_tokens}")
 
     @classmethod
     def from_pretrained(

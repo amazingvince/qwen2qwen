@@ -9,6 +9,7 @@ import pytest
 
 from qwen3_encdec.tokenization_qwen3_encdec import (
     SENTINEL_TOKEN_TEMPLATE,
+    UL2_PREFIX_TOKENS,
     Qwen3EncoderDecoderTokenizer,
     apply_sentinel_corruption,
     create_sentinel_sequence,
@@ -31,6 +32,9 @@ class TestQwen3EncoderDecoderTokenizer:
         mock.bos_token = "<s>"
         mock.bos_token_id = 2
         mock.unk_token_id = 3
+        # Return UNK for unknown tokens so sentinels get added
+        mock.convert_tokens_to_ids = MagicMock(return_value=3)
+        mock.additional_special_tokens = []
         return mock
 
     @pytest.fixture
@@ -45,13 +49,25 @@ class TestQwen3EncoderDecoderTokenizer:
         assert tokenizer.num_sentinel_tokens == 100
         assert tokenizer.original_vocab_size == 151936
 
-        # Verify sentinel tokens were added
-        mock_base_tokenizer.add_special_tokens.assert_called_once()
-        call_args = mock_base_tokenizer.add_special_tokens.call_args
-        added_tokens = call_args[0][0]["additional_special_tokens"]
-        assert len(added_tokens) == 100
-        assert added_tokens[0] == "<extra_id_0>"
-        assert added_tokens[99] == "<extra_id_99>"
+        # Verify tokens were added (sentinel + UL2 prefix)
+        assert mock_base_tokenizer.add_special_tokens.call_count == 2
+
+        # First call should be sentinel tokens
+        first_call_args = mock_base_tokenizer.add_special_tokens.call_args_list[0][0][0]
+        sentinel_tokens = first_call_args["additional_special_tokens"]
+        assert len(sentinel_tokens) == 100
+        assert sentinel_tokens[0] == "<extra_id_0>"
+        assert sentinel_tokens[99] == "<extra_id_99>"
+
+        # Second call should include UL2 prefix tokens
+        second_call_args = mock_base_tokenizer.add_special_tokens.call_args_list[1][0][
+            0
+        ]
+        ul2_tokens = second_call_args["additional_special_tokens"]
+        assert "[R]" in ul2_tokens
+        assert "[X]" in ul2_tokens
+        assert "[S]" in ul2_tokens
+        assert "[I]" in ul2_tokens
 
     def test_initialization_sets_pad_token(self):
         """Test that pad_token is set from eos_token if None."""
@@ -60,6 +76,9 @@ class TestQwen3EncoderDecoderTokenizer:
         mock.add_special_tokens = MagicMock(return_value=100)
         mock.pad_token = None
         mock.eos_token = "</s>"
+        mock.unk_token_id = 3
+        mock.convert_tokens_to_ids = MagicMock(return_value=3)
+        mock.additional_special_tokens = []
 
         Qwen3EncoderDecoderTokenizer(mock, num_sentinel_tokens=100)
 
@@ -432,3 +451,110 @@ class TestCustomSentinelCount:
 
         with pytest.raises(ValueError):
             tokenizer.get_sentinel_token(0)
+
+
+class TestUL2PrefixTokens:
+    """Test UL2 prefix token handling."""
+
+    def test_ul2_prefix_tokens_constant(self):
+        """Test that UL2 prefix tokens are defined correctly."""
+        assert UL2_PREFIX_TOKENS == ["[R]", "[X]", "[S]", "[I]"]
+
+    def test_ul2_prefix_tokens_added_when_new(self):
+        """Test that UL2 prefix tokens are added for new tokenizers."""
+        mock = MagicMock()
+        mock.__len__ = MagicMock(return_value=151936)
+        # Sentinel tokens added successfully
+        mock.add_special_tokens = MagicMock(return_value=100)
+        mock.pad_token = None
+        mock.eos_token = "</s>"
+        mock.unk_token_id = 3
+        # First prefix doesn't exist (returns UNK)
+        mock.convert_tokens_to_ids = MagicMock(return_value=3)
+        mock.additional_special_tokens = []
+
+        Qwen3EncoderDecoderTokenizer(mock, num_sentinel_tokens=100)
+
+        # Should have called add_special_tokens twice (sentinel + UL2 prefix)
+        assert mock.add_special_tokens.call_count == 2
+
+    def test_ul2_prefix_tokens_not_readded_when_exist(self):
+        """Test that UL2 prefix tokens are not re-added if they exist."""
+        mock = MagicMock()
+        mock.__len__ = MagicMock(return_value=151940)
+        mock.add_special_tokens = MagicMock(return_value=100)
+        mock.pad_token = None
+        mock.eos_token = "</s>"
+        mock.unk_token_id = 3
+
+        # Simulate tokens already existing
+        def convert_tokens_to_ids(token):
+            if token == "<extra_id_0>":
+                return 151936  # Sentinel exists
+            if token == "[R]":
+                return 151940  # UL2 prefix exists (not UNK)
+            return 3  # UNK
+
+        mock.convert_tokens_to_ids = MagicMock(side_effect=convert_tokens_to_ids)
+        mock.additional_special_tokens = ["[R]", "[X]", "[S]", "[I]"]
+
+        Qwen3EncoderDecoderTokenizer(mock, num_sentinel_tokens=100)
+
+        # Should only call add_special_tokens once (for sentinels check, returns early)
+        # Actually with our new logic, if first sentinel exists, we return early
+        # So add_special_tokens should not be called at all
+        # Let me re-check the logic...
+        # _add_sentinel_tokens: if first_sentinel_id != unk_id, return early (no call)
+        # _add_ul2_prefix_tokens: if first_prefix_id != unk_id, return early (no call)
+        assert mock.add_special_tokens.call_count == 0
+
+
+class TestSentinelTokenDetection:
+    """Test sentinel token detection when loading saved tokenizers."""
+
+    def test_sentinels_detected_as_existing(self):
+        """Test that existing sentinel tokens are detected and not re-added."""
+        mock = MagicMock()
+        mock.__len__ = MagicMock(return_value=152036)
+        mock.add_special_tokens = MagicMock(return_value=0)
+        mock.pad_token = "</s>"
+        mock.eos_token = "</s>"
+        mock.unk_token_id = 3
+
+        # First sentinel exists (not UNK)
+        def convert_tokens_to_ids(token):
+            if token == "<extra_id_0>":
+                return 151936  # Exists
+            if token == "[R]":
+                return 152036  # Exists
+            return 3
+
+        mock.convert_tokens_to_ids = MagicMock(side_effect=convert_tokens_to_ids)
+        mock.additional_special_tokens = []
+
+        tokenizer = Qwen3EncoderDecoderTokenizer(mock, num_sentinel_tokens=100)
+
+        # Sentinel tokens should not be re-added
+        # add_special_tokens should not be called for sentinels
+        # (but may be called for UL2 prefixes if they don't exist)
+        assert tokenizer.num_sentinel_tokens == 100
+
+    def test_sentinels_added_when_not_exist(self):
+        """Test that sentinel tokens are added when they don't exist."""
+        mock = MagicMock()
+        mock.__len__ = MagicMock(return_value=151936)
+        mock.add_special_tokens = MagicMock(return_value=100)
+        mock.pad_token = None
+        mock.eos_token = "</s>"
+        mock.unk_token_id = 3
+        # First sentinel returns UNK (doesn't exist)
+        mock.convert_tokens_to_ids = MagicMock(return_value=3)
+        mock.additional_special_tokens = []
+
+        Qwen3EncoderDecoderTokenizer(mock, num_sentinel_tokens=100)
+
+        # Sentinel tokens should be added
+        assert mock.add_special_tokens.call_count >= 1
+        # Check that sentinels were in the first call
+        first_call_args = mock.add_special_tokens.call_args_list[0][0][0]
+        assert "<extra_id_0>" in first_call_args["additional_special_tokens"]

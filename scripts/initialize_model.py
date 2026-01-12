@@ -116,19 +116,27 @@ def main():
         logger.info(f"Converting model to {args.dtype}...")
         model = model.to(dtype_map[args.dtype])
 
-    # Save model
+    # Create output directory
     output_path = Path(args.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Saving model to {output_path}...")
-    model.save_pretrained(output_path)
-
-    # Create and save tokenizer
-    logger.info("Creating tokenizer with sentinel tokens...")
+    # Create tokenizer first (adds sentinel + UL2 prefix tokens)
+    logger.info("Creating tokenizer with sentinel and UL2 prefix tokens...")
     tokenizer = Qwen3EncoderDecoderTokenizer.from_pretrained(
         args.qwen3_model,
         num_sentinel_tokens=args.num_sentinel_tokens,
     )
+
+    # Resize model embeddings to match tokenizer vocab size
+    if len(tokenizer) != model.config.vocab_size:
+        logger.info(
+            f"Resizing embeddings: {model.config.vocab_size} -> {len(tokenizer)}"
+        )
+        model.resize_token_embeddings(len(tokenizer))
+
+    # Save model and tokenizer
+    logger.info(f"Saving model to {output_path}...")
+    model.save_pretrained(output_path)
     tokenizer.save_pretrained(output_path)
     logger.info(f"Tokenizer saved with vocab size: {tokenizer.vocab_size}")
 
