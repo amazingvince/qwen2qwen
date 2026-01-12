@@ -39,7 +39,8 @@ class MockTokenizer:
 
 class TestT5Gemma2Config:
     def test_default_weights_normalized(self):
-        cfg = t5gemma2_config()
+        with pytest.warns(DeprecationWarning, match="t5gemma2_config"):
+            cfg = t5gemma2_config()
         assert len(cfg.denoisers) == 5
         assert len(cfg.weights) == 5
         assert abs(sum(cfg.weights) - 1.0) < 1e-6
@@ -49,7 +50,8 @@ class TestT5Gemma2Config:
             assert abs(got - exp) < 1e-6
 
     def test_override_weights(self):
-        cfg = t5gemma2_config(weights=[3, 1, 1, 1, 2])
+        with pytest.warns(DeprecationWarning, match="t5gemma2_config"):
+            cfg = t5gemma2_config(weights=[3, 1, 1, 1, 2])
         assert len(cfg.weights) == 5
         assert abs(sum(cfg.weights) - 1.0) < 1e-6
 
@@ -135,8 +137,9 @@ class TestUL2DataCollator:
 @pytest.mark.parametrize("bad_weights", [[1, 1, 1], [], [0, 0, 0, 0, 0]])
 def test_invalid_t5gemma2_weights_rejected(bad_weights):
     if len(bad_weights) != 5 or sum(bad_weights) <= 0:
-        with pytest.raises(Exception):
-            t5gemma2_config(weights=bad_weights)  # type: ignore[arg-type]
+        with pytest.warns(DeprecationWarning, match="t5gemma2_config"):
+            with pytest.raises(Exception):
+                t5gemma2_config(weights=bad_weights)  # type: ignore[arg-type]
 
 
 class TestUL2RecommendedConfigs:

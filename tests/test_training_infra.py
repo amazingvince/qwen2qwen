@@ -336,6 +336,7 @@ class TestScheduler:
 
         # Step through warmup
         for _ in range(100):
+            optimizer.step()
             warmup_scheduler.step()
 
         # Should be at full LR
