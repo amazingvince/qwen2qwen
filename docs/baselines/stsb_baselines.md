@@ -4,8 +4,8 @@ Generated: 2026-01-12
 
 ## Summary
 
-These baselines establish reference values for monitoring Qwen3-Encoder training progress.
-Models are evaluated on STS-B test set without fine-tuning on STS-B training data.
+Baseline STS-B evaluation results for various embedding and encoder models.
+All models evaluated on STS-B test set without fine-tuning on STS-B training data.
 
 ## Results
 
@@ -23,11 +23,12 @@ Models are evaluated on STS-B test set without fine-tuning on STS-B training dat
 
 ## Notes
 
-- **Qwen3-Embedding-0.6B** is the primary target for our trained encoder to match/beat
-- Ettin models are encoder-only transformers (no contrastive training), evaluated with mean pooling
-- RoBERTa-base is a raw encoder baseline with mean pooling (no embedding training)
-- E5-base-v2 and all-MiniLM-L6-v2 are sentence-transformers models for reference
-- Spearman correlation (rho) is the primary metric for STS tasks
+- **Qwen3-Embedding-0.6B** uses the same base architecture (Qwen3-0.6B) with contrastive training
+- **Qwen3-0.6B (zero-train)** represents the encoder weights at initialization before any training
+- Ettin models are encoder-only transformers without contrastive training, evaluated with mean pooling
+- RoBERTa-base is evaluated with mean pooling over the final hidden states (no embedding-specific training)
+- E5-base-v2, Gemma-Embedding-300M, and all-MiniLM-L6-v2 are sentence-transformers models trained for embeddings
+- Spearman correlation (ρ) is the standard metric for STS evaluation
 
 ## Evaluation Details
 
