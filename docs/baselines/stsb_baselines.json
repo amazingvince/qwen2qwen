@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-12T12:21:37.040587",
+  "timestamp": "2026-01-12T12:33:58.435063",
   "device": "cuda",
   "batch_size": 32,
   "models": {
@@ -65,6 +65,39 @@
         "stsb": {
           "spearman": 0.8203246731235654,
           "pearson": 0.8274064259989555,
+          "num_samples": 1379
+        }
+      }
+    },
+    "Ettin-Encoder-17M": {
+      "model_id": "jhu-clsp/ettin-encoder-17m",
+      "params": "17M",
+      "results": {
+        "stsb": {
+          "spearman": 0.39209137758313234,
+          "pearson": 0.32621298877446153,
+          "num_samples": 1379
+        }
+      }
+    },
+    "Gemma-Embedding-300M": {
+      "model_id": "google/embeddinggemma-300m",
+      "params": "300M",
+      "results": {
+        "stsb": {
+          "spearman": 0.8486615885160277,
+          "pearson": 0.8447079711505479,
+          "num_samples": 1379
+        }
+      }
+    },
+    "Qwen3-0.6B (zero-train)": {
+      "model_id": "Qwen/Qwen3-0.6B",
+      "params": "600M",
+      "results": {
+        "stsb": {
+          "spearman": 0.4572657293678071,
+          "pearson": 0.41825951716816345,
           "num_samples": 1379
         }
       }

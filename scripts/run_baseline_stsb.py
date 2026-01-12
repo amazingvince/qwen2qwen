@@ -89,6 +89,27 @@ BASELINE_MODELS = [
         model_type="sentence_transformer",
         params="22M",
     ),
+    BaselineModelConfig(
+        name="Ettin-Encoder-17M",
+        model_id="jhu-clsp/ettin-encoder-17m",
+        model_type="encoder_pool",
+        pooling="mean",
+        params="17M",
+    ),
+    BaselineModelConfig(
+        name="Gemma-Embedding-300M",
+        model_id="google/embeddinggemma-300m",
+        model_type="sentence_transformer",
+        params="300M",
+    ),
+    # Zero-training baseline: Qwen3-0.6B encoder weights before any training
+    BaselineModelConfig(
+        name="Qwen3-0.6B (zero-train)",
+        model_id="Qwen/Qwen3-0.6B",
+        model_type="encoder_pool",
+        pooling="mean",
+        params="600M",
+    ),
 ]
 
 
