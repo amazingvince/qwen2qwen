@@ -47,7 +47,7 @@ from .weight_initialization import (
     verify_weight_initialization,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # Configuration
