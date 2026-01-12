@@ -383,6 +383,9 @@ class Qwen3EncoderDecoderTrainer:
         last_log_time = time.time()
         last_grad_norm = None
 
+        # Initialize curriculum progress before first batch (important for resume)
+        self._update_curriculum_progress()
+
         # Infinite iterator for streaming datasets
         train_iterator = iter(self.train_dataloader)
 
