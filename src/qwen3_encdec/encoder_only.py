@@ -437,9 +437,12 @@ class Qwen3StandaloneEncoderModel(PreTrainedModel):
 
         iterator = range(0, len(sentences), batch_size)
         if show_progress:
-            from tqdm import tqdm
+            try:
+                from tqdm import tqdm
 
-            iterator = tqdm(iterator, desc="Encoding", unit="batch")
+                iterator = tqdm(iterator, desc="Encoding", unit="batch")
+            except ImportError:
+                pass  # tqdm unavailable, proceed without progress bar
 
         with torch.no_grad():
             for i in iterator:

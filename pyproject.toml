@@ -29,7 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["transformers>=4.40.0", "torch>=2.0.0"]
+dependencies = ["transformers>=4.40.0", "torch>=2.0.0", "tqdm>=4.66.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
@@ -39,7 +39,6 @@ training = [
     "wandb>=0.16.0",
     "tensorboard>=2.15.0",
     "pyyaml>=6.0",
-    "tqdm>=4.66.0",
     "safetensors>=0.4.0",
     "UL2_5 @ git+https://github.com/pszemraj/UL2_5.git@v0.1.4",
 ]
