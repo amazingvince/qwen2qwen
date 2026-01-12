@@ -36,11 +36,12 @@ dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
 training = [
     "accelerate>=0.27.0",
     "datasets>=2.16.0",
-    "wandb>=0.16.0",
-    "tensorboard>=2.15.0",
+    "numpy>=1.24.0",
     "pyyaml>=6.0",
     "safetensors>=0.4.0",
+    "tensorboard>=2.15.0",
     "UL2_5 @ git+https://github.com/pszemraj/UL2_5.git@v0.1.4",
+    "wandb>=0.16.0",
 ]
 optimizations = ["cut-cross-entropy>=24.11.0", "liger-kernel>=0.4.0"]
 evaluation = [
