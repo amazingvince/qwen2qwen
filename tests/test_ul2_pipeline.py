@@ -60,7 +60,7 @@ class TestUL2DataCollator:
         tokenizer = MockTokenizer()
         collator = UL2DataCollator(
             tokenizer,
-            config=t5gemma2_config(enable_length_adaptive=False),
+            config=ul2_recommended_config(enable_length_adaptive=False),
             max_length=64,
             max_labels_length=32,
             collate_on_cpu=True,
@@ -87,7 +87,7 @@ class TestUL2DataCollator:
         tokenizer = MockTokenizer()
         collator = UL2DataCollator(
             tokenizer,
-            config=t5gemma2_config(enable_length_adaptive=False),
+            config=ul2_recommended_config(enable_length_adaptive=False),
             max_length=64,
             max_labels_length=32,
             collate_on_cpu=True,
@@ -103,9 +103,33 @@ class TestUL2DataCollator:
 
     def test_progress_property_roundtrip(self):
         tokenizer = MockTokenizer()
-        collator = UL2DataCollator(tokenizer, config=t5gemma2_config())
+        collator = UL2DataCollator(tokenizer, config=ul2_recommended_config())
         collator.progress = 0.5
         assert 0.49 < collator.progress < 0.51
+
+    def test_empty_batch_returns_empty_tensors(self):
+        """Empty examples list should return empty batch, not crash."""
+        tokenizer = MockTokenizer()
+        collator = UL2DataCollator(
+            tokenizer,
+            config=ul2_recommended_config(),
+            max_length=64,
+            max_labels_length=32,
+        )
+
+        batch = collator([])
+
+        assert set(batch.keys()) >= {
+            "input_ids",
+            "attention_mask",
+            "decoder_input_ids",
+            "decoder_attention_mask",
+            "labels",
+        }
+        # All tensors should be empty (0, 0) shape
+        for key in ["input_ids", "attention_mask", "decoder_input_ids", "labels"]:
+            assert batch[key].shape[0] == 0
+            assert batch[key].dtype == torch.long
 
 
 @pytest.mark.parametrize("bad_weights", [[1, 1, 1], [], [0, 0, 0, 0, 0]])
@@ -285,12 +309,19 @@ class TestCurriculumProgress:
         tokenizer = MockTokenizer()
         collator = UL2DataCollator(tokenizer, config=ul2_recommended_config())
 
-        # Values should be clamped 0-1 by the underlying collator
+        # Test boundary values
         collator.progress = 0.0
-        assert collator.progress >= 0.0
+        assert collator.progress == 0.0
 
         collator.progress = 1.0
-        assert collator.progress <= 1.0
+        assert collator.progress == 1.0
+
+        # Test out-of-bounds values get clamped by underlying collator
+        collator.progress = -0.5
+        assert 0.0 <= collator.progress <= 1.0
+
+        collator.progress = 2.0
+        assert 0.0 <= collator.progress <= 1.0
 
     def test_progress_updates_correctly(self):
         tokenizer = MockTokenizer()

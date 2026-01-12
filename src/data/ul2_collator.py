@@ -7,6 +7,7 @@ import multiprocessing.sharedctypes
 import warnings
 from typing import Any, Dict, List, Optional
 
+import torch
 from torch import Tensor
 from UL2_5.collator_torch import UL25DataCollator as _UL25DataCollator
 from UL2_5.config import DenoiserSpec, Task, UL25Config
@@ -293,6 +294,16 @@ class UL2DataCollator:
         # This ensures DataLoader workers see the main process's progress updates
         if self._shared_progress is not None and hasattr(self._impl, "progress"):
             self._impl.progress = self._shared_progress.value
+
+        # Handle empty batch (can occur at end of small datasets)
+        if not examples:
+            return {
+                "input_ids": torch.empty(0, 0, dtype=torch.long),
+                "attention_mask": torch.empty(0, 0, dtype=torch.long),
+                "decoder_input_ids": torch.empty(0, 0, dtype=torch.long),
+                "decoder_attention_mask": torch.empty(0, 0, dtype=torch.long),
+                "labels": torch.empty(0, 0, dtype=torch.long),
+            }
 
         if self._collate_on_cpu:
             cpu_examples: List[Dict[str, Any]] = []
