@@ -14,16 +14,26 @@ def ul2_recommended_config(
     *,
     enable_unpad_encoder: bool = False,
     enable_unpad_decoder: bool = False,
+    enable_length_adaptive: bool = False,
+    enable_boundary_snapping: bool = False,
 ) -> UL25Config:
     """
-    UL25Config.recommended() with optional Flash Attention unpad.
+    UL25Config.recommended() with optional settings.
 
     This is the recommended default for training - uses UL2_5's optimized
     denoiser mixture without curriculum learning.
+
+    Args:
+        enable_unpad_encoder: Enable Flash Attention unpad for encoder.
+        enable_unpad_decoder: Enable Flash Attention unpad for decoder.
+        enable_length_adaptive: Enable length-adaptive span corruption.
+        enable_boundary_snapping: Enable word boundary snapping for spans.
     """
     config = UL25Config.recommended()
     config.enable_unpad_encoder = enable_unpad_encoder
     config.enable_unpad_decoder = enable_unpad_decoder
+    config.enable_length_adaptive = enable_length_adaptive
+    config.enable_boundary_snapping = enable_boundary_snapping
     return config
 
 
@@ -31,16 +41,34 @@ def ul2_recommended_with_curriculum_config(
     *,
     enable_unpad_encoder: bool = False,
     enable_unpad_decoder: bool = False,
+    enable_length_adaptive: bool = False,
+    enable_boundary_snapping: bool = False,
+    curriculum_start: Optional[List[float]] = None,
+    curriculum_end: Optional[List[float]] = None,
 ) -> UL25Config:
     """
-    UL25Config.recommended_with_curriculum() with optional Flash Attention unpad.
+    UL25Config.recommended_with_curriculum() with optional settings.
 
     Use this when curriculum learning is desired - task weights shift during training.
     Requires updating collator.progress during training.
+
+    Args:
+        enable_unpad_encoder: Enable Flash Attention unpad for encoder.
+        enable_unpad_decoder: Enable Flash Attention unpad for decoder.
+        enable_length_adaptive: Enable length-adaptive span corruption.
+        enable_boundary_snapping: Enable word boundary snapping for spans.
+        curriculum_start: Starting weights for curriculum (overrides default).
+        curriculum_end: Ending weights for curriculum (overrides default).
     """
     config = UL25Config.recommended_with_curriculum()
     config.enable_unpad_encoder = enable_unpad_encoder
     config.enable_unpad_decoder = enable_unpad_decoder
+    config.enable_length_adaptive = enable_length_adaptive
+    config.enable_boundary_snapping = enable_boundary_snapping
+    if curriculum_start is not None:
+        config.curriculum_start = list(curriculum_start)
+    if curriculum_end is not None:
+        config.curriculum_end = list(curriculum_end)
     return config
 
 
@@ -274,11 +302,21 @@ def create_collator_from_config(
         ul25_config = ul2_recommended_with_curriculum_config(
             enable_unpad_encoder=getattr(data_config, "ul2_unpad_encoder", False),
             enable_unpad_decoder=getattr(data_config, "ul2_unpad_decoder", False),
+            enable_length_adaptive=getattr(data_config, "ul2_length_adaptive", False),
+            enable_boundary_snapping=getattr(
+                data_config, "ul2_boundary_snapping", False
+            ),
+            curriculum_start=getattr(data_config, "ul2_curriculum_start", None),
+            curriculum_end=getattr(data_config, "ul2_curriculum_end", None),
         )
     else:
         ul25_config = ul2_recommended_config(
             enable_unpad_encoder=getattr(data_config, "ul2_unpad_encoder", False),
             enable_unpad_decoder=getattr(data_config, "ul2_unpad_decoder", False),
+            enable_length_adaptive=getattr(data_config, "ul2_length_adaptive", False),
+            enable_boundary_snapping=getattr(
+                data_config, "ul2_boundary_snapping", False
+            ),
         )
 
     return UL2DataCollator(
