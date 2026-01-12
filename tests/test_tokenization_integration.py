@@ -9,7 +9,9 @@ import pytest
 # Try to import the tokenizer, skip all tests if it fails
 try:
     from qwen3_encdec.tokenization_qwen3_encdec import (
-        Qwen3EncoderDecoderTokenizer, apply_sentinel_corruption)
+        Qwen3EncoderDecoderTokenizer,
+        apply_sentinel_corruption,
+    )
 
     TOKENIZER_AVAILABLE = True
 except ImportError:
@@ -149,7 +151,9 @@ class TestTokenizerSaveLoadIntegration:
         assert loaded.vocab_size == real_tokenizer.vocab_size
 
         # Verify sentinel tokens work
-        assert loaded.get_sentinel_token_id(0) == real_tokenizer.get_sentinel_token_id(0)
+        assert loaded.get_sentinel_token_id(0) == real_tokenizer.get_sentinel_token_id(
+            0
+        )
 
     def test_reload_encodes_correctly(self, real_tokenizer, tmp_path):
         """Test that reloaded tokenizer encodes same as original."""

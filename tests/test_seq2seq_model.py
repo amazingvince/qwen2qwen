@@ -5,11 +5,15 @@ from pathlib import Path
 
 import pytest
 import torch
-import torch.nn as nn
 
-from qwen3_encdec import (Qwen3Decoder, Qwen3Encoder,
-                          Qwen3EncoderDecoderConfig, Qwen3EncoderModel,
-                          Qwen3ForSeq2SeqLM, Qwen3Seq2SeqModel)
+from qwen3_encdec import (
+    Qwen3Decoder,
+    Qwen3Encoder,
+    Qwen3EncoderDecoderConfig,
+    Qwen3EncoderModel,
+    Qwen3ForSeq2SeqLM,
+    Qwen3Seq2SeqModel,
+)
 
 # =============================================================================
 # Fixtures
@@ -481,10 +485,9 @@ class TestModelSaveLoad:
 
             # Check files exist
             assert (Path(tmpdir) / "config.json").exists()
-            assert (
-                (Path(tmpdir) / "model.safetensors").exists()
-                or (Path(tmpdir) / "pytorch_model.bin").exists()
-            )
+            assert (Path(tmpdir) / "model.safetensors").exists() or (
+                Path(tmpdir) / "pytorch_model.bin"
+            ).exists()
 
             # Load
             loaded = Qwen3ForSeq2SeqLM.from_pretrained(tmpdir)

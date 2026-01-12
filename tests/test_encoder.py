@@ -1,21 +1,23 @@
 """Unit tests for Qwen3 Encoder implementation."""
 
-import math
-
 import pytest
 import torch
 import torch.nn as nn
 
 from qwen3_encdec import Qwen3EncoderDecoderConfig
-from qwen3_encdec.modeling_qwen3_encoder import (Qwen3Encoder,
-                                                 Qwen3EncoderAttention,
-                                                 Qwen3EncoderLayer,
-                                                 Qwen3EncoderModel,
-                                                 Qwen3EncoderOutput, Qwen3MLP,
-                                                 Qwen3RMSNorm,
-                                                 Qwen3RotaryEmbedding,
-                                                 apply_rotary_pos_emb,
-                                                 repeat_kv, rotate_half)
+from qwen3_encdec.modeling_qwen3_encoder import (
+    Qwen3Encoder,
+    Qwen3EncoderAttention,
+    Qwen3EncoderLayer,
+    Qwen3EncoderModel,
+    Qwen3EncoderOutput,
+    Qwen3MLP,
+    Qwen3RMSNorm,
+    Qwen3RotaryEmbedding,
+    apply_rotary_pos_emb,
+    repeat_kv,
+    rotate_half,
+)
 
 # =============================================================================
 # Fixtures
@@ -550,7 +552,11 @@ class TestQwen3Encoder:
         for seq_len in [4, 16, 32, 64]:
             input_ids = torch.randint(0, 100, (2, seq_len))
             output = encoder(input_ids)
-            assert output.last_hidden_state.shape == (2, seq_len, small_config.hidden_size)
+            assert output.last_hidden_state.shape == (
+                2,
+                seq_len,
+                small_config.hidden_size,
+            )
 
     def test_attention_mask_effect(self, small_config):
         """Test that attention mask affects output."""
@@ -566,7 +572,9 @@ class TestQwen3Encoder:
         # Masked attention (mask last 4 tokens)
         mask_partial = torch.ones(1, 8)
         mask_partial[:, 4:] = 0
-        output_partial = encoder(input_ids, attention_mask=mask_partial).last_hidden_state
+        output_partial = encoder(
+            input_ids, attention_mask=mask_partial
+        ).last_hidden_state
 
         # Outputs should differ
         assert not torch.allclose(output_full, output_partial)
@@ -740,7 +748,9 @@ class TestEncoderGPU:
         # Partial mask
         mask_partial = torch.ones(2, 16).cuda()
         mask_partial[:, 8:] = 0
-        output_partial = encoder(input_ids, attention_mask=mask_partial).last_hidden_state
+        output_partial = encoder(
+            input_ids, attention_mask=mask_partial
+        ).last_hidden_state
 
         # Outputs should differ
         assert not torch.allclose(output_full, output_partial)

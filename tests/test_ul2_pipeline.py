@@ -7,9 +7,13 @@ from dataclasses import dataclass
 import pytest
 import torch
 
-from src.data import (UL2DataCollator, create_collator_from_config,
-                      t5gemma2_config, ul2_recommended_config,
-                      ul2_recommended_with_curriculum_config)
+from src.data import (
+    UL2DataCollator,
+    create_collator_from_config,
+    t5gemma2_config,
+    ul2_recommended_config,
+    ul2_recommended_with_curriculum_config,
+)
 
 
 @dataclass

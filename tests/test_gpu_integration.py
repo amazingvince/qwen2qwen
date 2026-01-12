@@ -78,11 +78,15 @@ class TestEncoderDecoderIntegrationGPU:
         dec_len = 8
 
         # Encoder forward
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
         encoder_output = encoder(encoder_input_ids)
 
         # Decoder forward
-        decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+        decoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
         decoder_output = decoder(
             input_ids=decoder_input_ids,
             encoder_hidden_states=encoder_output.last_hidden_state,
@@ -90,7 +94,11 @@ class TestEncoderDecoderIntegrationGPU:
 
         # Verify outputs
         assert decoder_output.last_hidden_state.device.type == "cuda"
-        assert decoder_output.last_hidden_state.shape == (batch_size, dec_len, small_config.hidden_size)
+        assert decoder_output.last_hidden_state.shape == (
+            batch_size,
+            dec_len,
+            small_config.hidden_size,
+        )
 
     def test_encoder_decoder_gradient_flow_gpu(self, small_config):
         """Test gradients flow from decoder loss to encoder on GPU."""
@@ -104,8 +112,12 @@ class TestEncoderDecoderIntegrationGPU:
         dec_len = 4
 
         # Forward pass
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-        decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
+        decoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
 
         encoder_output = encoder(encoder_input_ids)
         decoder_output = decoder(
@@ -119,12 +131,10 @@ class TestEncoderDecoderIntegrationGPU:
 
         # Check gradients exist in both encoder and decoder
         encoder_has_grad = any(
-            p.grad is not None and p.grad.abs().sum() > 0
-            for p in encoder.parameters()
+            p.grad is not None and p.grad.abs().sum() > 0 for p in encoder.parameters()
         )
         decoder_has_grad = any(
-            p.grad is not None and p.grad.abs().sum() > 0
-            for p in decoder.parameters()
+            p.grad is not None and p.grad.abs().sum() > 0 for p in decoder.parameters()
         )
 
         assert encoder_has_grad, "Encoder should have gradients"
@@ -139,8 +149,12 @@ class TestEncoderDecoderIntegrationGPU:
         enc_len = 8
         dec_len = 4
 
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-        decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
+        decoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
 
         encoder_output = encoder(encoder_input_ids)
         decoder_output = decoder(
@@ -158,7 +172,9 @@ class TestEncoderDecoderIntegrationGPU:
         dec_len = 6
 
         # Encode with attention mask (some padding)
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
         encoder_attention_mask = torch.ones(batch_size, enc_len).cuda()
         encoder_attention_mask[:, -2:] = 0  # Last 2 positions are padding
 
@@ -168,7 +184,9 @@ class TestEncoderDecoderIntegrationGPU:
         )
 
         # Decode with encoder attention mask
-        decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+        decoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
         decoder_output = decoder(
             input_ids=decoder_input_ids,
             encoder_hidden_states=encoder_output.last_hidden_state,
@@ -176,7 +194,11 @@ class TestEncoderDecoderIntegrationGPU:
         )
 
         # Verify output shape
-        assert decoder_output.last_hidden_state.shape == (batch_size, dec_len, small_config.hidden_size)
+        assert decoder_output.last_hidden_state.shape == (
+            batch_size,
+            dec_len,
+            small_config.hidden_size,
+        )
 
 
 # =============================================================================
@@ -197,8 +219,12 @@ class TestMemoryStressGPU:
         dec_len = 8
 
         with torch.no_grad():
-            encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-            decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+            encoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, enc_len)
+            ).cuda()
+            decoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, dec_len)
+            ).cuda()
 
             encoder_output = encoder(encoder_input_ids)
             decoder_output = decoder(
@@ -218,8 +244,12 @@ class TestMemoryStressGPU:
         dec_len = 256
 
         with torch.no_grad():
-            encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-            decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+            encoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, enc_len)
+            ).cuda()
+            decoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, dec_len)
+            ).cuda()
 
             encoder_output = encoder(encoder_input_ids)
             decoder_output = decoder(
@@ -227,7 +257,11 @@ class TestMemoryStressGPU:
                 encoder_hidden_states=encoder_output.last_hidden_state,
             )
 
-        assert decoder_output.last_hidden_state.shape == (batch_size, dec_len, small_config.hidden_size)
+        assert decoder_output.last_hidden_state.shape == (
+            batch_size,
+            dec_len,
+            small_config.hidden_size,
+        )
 
     def test_memory_cleanup_gpu(self, small_config):
         """Test no memory leaks across multiple forward passes."""
@@ -243,8 +277,12 @@ class TestMemoryStressGPU:
         torch.cuda.reset_peak_memory_stats()
 
         with torch.no_grad():
-            encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-            decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+            encoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, enc_len)
+            ).cuda()
+            decoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, dec_len)
+            ).cuda()
 
             encoder_output = encoder(encoder_input_ids)
             _ = decoder(
@@ -261,8 +299,12 @@ class TestMemoryStressGPU:
         # Multiple forward passes
         for _ in range(5):
             with torch.no_grad():
-                encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-                decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+                encoder_input_ids = torch.randint(
+                    0, small_config.vocab_size, (batch_size, enc_len)
+                ).cuda()
+                decoder_input_ids = torch.randint(
+                    0, small_config.vocab_size, (batch_size, dec_len)
+                ).cuda()
 
                 encoder_output = encoder(encoder_input_ids)
                 _ = decoder(
@@ -299,8 +341,12 @@ class TestMemoryStressGPU:
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
 
-        encoder_input_ids = torch.randint(0, medium_config.vocab_size, (batch_size, enc_len)).cuda()
-        decoder_input_ids = torch.randint(0, medium_config.vocab_size, (batch_size, dec_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, medium_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
+        decoder_input_ids = torch.randint(
+            0, medium_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
 
         encoder_output = encoder_no_ckpt(encoder_input_ids)
         decoder_output = decoder_no_ckpt(
@@ -328,8 +374,12 @@ class TestMemoryStressGPU:
 
         torch.cuda.reset_peak_memory_stats()
 
-        encoder_input_ids = torch.randint(0, medium_config.vocab_size, (batch_size, enc_len)).cuda()
-        decoder_input_ids = torch.randint(0, medium_config.vocab_size, (batch_size, dec_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, medium_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
+        decoder_input_ids = torch.randint(
+            0, medium_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
 
         encoder_output = encoder_ckpt(encoder_input_ids)
         decoder_output = decoder_ckpt(
@@ -365,7 +415,9 @@ class TestAutoregressiveGenerationGPU:
         max_new_tokens = 10
 
         # Encode
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
         encoder_output = encoder(encoder_input_ids)
 
         # Start with BOS token (assume 1)
@@ -382,10 +434,10 @@ class TestAutoregressiveGenerationGPU:
                     use_cache=True,
                 )
 
-                # Get last hidden state and sample next token
-                last_hidden = decoder_output.last_hidden_state[:, -1, :]
-                # Simple argmax on a random projection (simulating lm_head)
-                next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
+                # Sample next token (simulating lm_head with random tokens)
+                next_token = torch.randint(
+                    0, small_config.vocab_size, (batch_size, 1), device="cuda"
+                )
 
                 generated_tokens.append(next_token)
                 decoder_input_ids = next_token
@@ -403,13 +455,17 @@ class TestAutoregressiveGenerationGPU:
         batch_size = 1
         enc_len = 8
 
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
 
         with torch.no_grad():
             encoder_output = encoder(encoder_input_ids)
 
             # Initial decoding step
-            decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.long, device="cuda")
+            decoder_input_ids = torch.ones(
+                batch_size, 1, dtype=torch.long, device="cuda"
+            )
             output1 = decoder(
                 input_ids=decoder_input_ids,
                 encoder_hidden_states=encoder_output.last_hidden_state,
@@ -428,7 +484,9 @@ class TestAutoregressiveGenerationGPU:
                 assert enc_k.shape[2] == enc_len  # All encoder tokens
 
             # Second step
-            next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
+            next_token = torch.randint(
+                0, small_config.vocab_size, (batch_size, 1), device="cuda"
+            )
             output2 = decoder(
                 input_ids=next_token,
                 encoder_hidden_states=encoder_output.last_hidden_state,
@@ -453,12 +511,16 @@ class TestAutoregressiveGenerationGPU:
             torch.manual_seed(seed)
             torch.cuda.manual_seed(seed)
 
-            encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
+            encoder_input_ids = torch.randint(
+                0, small_config.vocab_size, (batch_size, enc_len)
+            ).cuda()
 
             with torch.no_grad():
                 encoder_output = encoder(encoder_input_ids)
 
-                decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.long, device="cuda")
+                decoder_input_ids = torch.ones(
+                    batch_size, 1, dtype=torch.long, device="cuda"
+                )
                 past_key_values = None
                 outputs = []
 
@@ -472,7 +534,9 @@ class TestAutoregressiveGenerationGPU:
 
                     outputs.append(decoder_output.last_hidden_state.clone())
                     # Simulate sampling
-                    next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
+                    next_token = torch.randint(
+                        0, small_config.vocab_size, (batch_size, 1), device="cuda"
+                    )
                     decoder_input_ids = next_token
                     past_key_values = decoder_output.past_key_values
 
@@ -484,7 +548,9 @@ class TestAutoregressiveGenerationGPU:
 
         # Should be identical
         for o1, o2 in zip(outputs1, outputs2):
-            assert torch.allclose(o1, o2, atol=1e-6), "Outputs should be deterministic with same seed"
+            assert torch.allclose(o1, o2, atol=1e-6), (
+                "Outputs should be deterministic with same seed"
+            )
 
     def test_generation_bf16_gpu(self, small_config):
         """Test autoregressive generation in BF16."""
@@ -495,12 +561,16 @@ class TestAutoregressiveGenerationGPU:
         enc_len = 8
         num_steps = 5
 
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
 
         with torch.no_grad():
             encoder_output = encoder(encoder_input_ids)
 
-            decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.long, device="cuda")
+            decoder_input_ids = torch.ones(
+                batch_size, 1, dtype=torch.long, device="cuda"
+            )
             past_key_values = None
 
             for _ in range(num_steps):
@@ -513,7 +583,9 @@ class TestAutoregressiveGenerationGPU:
 
                 assert decoder_output.last_hidden_state.dtype == torch.bfloat16
 
-                next_token = torch.randint(0, small_config.vocab_size, (batch_size, 1), device="cuda")
+                next_token = torch.randint(
+                    0, small_config.vocab_size, (batch_size, 1), device="cuda"
+                )
                 decoder_input_ids = next_token
                 past_key_values = decoder_output.past_key_values
 
@@ -526,12 +598,16 @@ class TestAutoregressiveGenerationGPU:
         enc_len = 16  # Short encoder sequence
         num_steps = 50  # Generate more tokens than enc_len
 
-        encoder_input_ids = torch.randint(0, small_config.vocab_size - 10, (batch_size, enc_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size - 10, (batch_size, enc_len)
+        ).cuda()
 
         with torch.no_grad():
             encoder_output = encoder(encoder_input_ids)
 
-            decoder_input_ids = torch.ones(batch_size, 1, dtype=torch.long, device="cuda")
+            decoder_input_ids = torch.ones(
+                batch_size, 1, dtype=torch.long, device="cuda"
+            )
             past_key_values = None
 
             for step in range(num_steps):
@@ -543,10 +619,16 @@ class TestAutoregressiveGenerationGPU:
                 )
 
                 # Check no NaN/Inf
-                assert not torch.isnan(decoder_output.last_hidden_state).any(), f"NaN at step {step}"
-                assert not torch.isinf(decoder_output.last_hidden_state).any(), f"Inf at step {step}"
+                assert not torch.isnan(decoder_output.last_hidden_state).any(), (
+                    f"NaN at step {step}"
+                )
+                assert not torch.isinf(decoder_output.last_hidden_state).any(), (
+                    f"Inf at step {step}"
+                )
 
-                next_token = torch.randint(0, small_config.vocab_size - 10, (batch_size, 1), device="cuda")
+                next_token = torch.randint(
+                    0, small_config.vocab_size - 10, (batch_size, 1), device="cuda"
+                )
                 decoder_input_ids = next_token
                 past_key_values = decoder_output.past_key_values
 
@@ -555,7 +637,9 @@ class TestAutoregressiveGenerationGPU:
         assert past_key_values[0][0].shape[2] == num_steps  # decoder cache grew
         assert past_key_values[0][2].shape[2] == enc_len  # encoder cache unchanged
 
-    def test_batch_vs_incremental_consistency_gpu(self, encoder_decoder_gpu, small_config):
+    def test_batch_vs_incremental_consistency_gpu(
+        self, encoder_decoder_gpu, small_config
+    ):
         """Verify batch decoding matches incremental decoding on GPU."""
         encoder, decoder = encoder_decoder_gpu
         batch_size = 1
@@ -565,8 +649,12 @@ class TestAutoregressiveGenerationGPU:
         torch.manual_seed(42)
         torch.cuda.manual_seed(42)
 
-        encoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, enc_len)).cuda()
-        decoder_input_ids = torch.randint(0, small_config.vocab_size, (batch_size, dec_len)).cuda()
+        encoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, enc_len)
+        ).cuda()
+        decoder_input_ids = torch.randint(
+            0, small_config.vocab_size, (batch_size, dec_len)
+        ).cuda()
 
         with torch.no_grad():
             encoder_output = encoder(encoder_input_ids)
@@ -595,7 +683,9 @@ class TestAutoregressiveGenerationGPU:
             incremental_combined = torch.cat(incremental_outputs, dim=1)
 
         # Should match closely (allow small numerical differences)
-        assert torch.allclose(batch_output.last_hidden_state, incremental_combined, atol=1e-4), (
+        assert torch.allclose(
+            batch_output.last_hidden_state, incremental_combined, atol=1e-4
+        ), (
             f"Batch and incremental should match. "
             f"Max diff: {(batch_output.last_hidden_state - incremental_combined).abs().max()}"
         )

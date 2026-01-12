@@ -7,10 +7,12 @@ import pytest
 import torch
 
 from src.qwen3_encdec import Qwen3EncoderDecoderConfig
-from src.qwen3_encdec.encoder_only import (Qwen3EncoderConfig,
-                                           Qwen3EncoderPooler,
-                                           Qwen3EncoderPoolerOutput,
-                                           Qwen3StandaloneEncoderModel)
+from src.qwen3_encdec.encoder_only import (
+    Qwen3EncoderConfig,
+    Qwen3EncoderPooler,
+    Qwen3EncoderPoolerOutput,
+    Qwen3StandaloneEncoderModel,
+)
 
 # =============================================================================
 # Test Qwen3EncoderConfig
@@ -418,9 +420,7 @@ class TestCheckpointAverager:
                 averaged = load_file(model_file)
             else:
                 averaged = torch.load(model_file)
-            assert torch.allclose(
-                averaged["layer.weight"], torch.full((2, 2), 3.0)
-            )
+            assert torch.allclose(averaged["layer.weight"], torch.full((2, 2), 3.0))
 
 
 # =============================================================================
@@ -435,8 +435,9 @@ class TestSentenceTransformersExport:
         """Test creating sentence-transformers config."""
         import json
 
-        from src.extraction.sentence_transformers_export import \
-            create_sentence_transformers_config
+        from src.extraction.sentence_transformers_export import (
+            create_sentence_transformers_config,
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             create_sentence_transformers_config(
@@ -468,8 +469,9 @@ class TestSentenceTransformersExport:
         """Test creating config without normalization."""
         import json
 
-        from src.extraction.sentence_transformers_export import \
-            create_sentence_transformers_config
+        from src.extraction.sentence_transformers_export import (
+            create_sentence_transformers_config,
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             create_sentence_transformers_config(

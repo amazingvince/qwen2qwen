@@ -8,8 +8,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from qwen3_encdec.tokenization_qwen3_encdec import (
-    SENTINEL_TOKEN_TEMPLATE, Qwen3EncoderDecoderTokenizer,
-    apply_sentinel_corruption, create_sentinel_sequence)
+    SENTINEL_TOKEN_TEMPLATE,
+    Qwen3EncoderDecoderTokenizer,
+    apply_sentinel_corruption,
+    create_sentinel_sequence,
+)
 
 
 class TestQwen3EncoderDecoderTokenizer:
@@ -359,7 +362,8 @@ class TestTokenizerSaveLoad:
                 json.dump({"num_sentinel_tokens": 75}, f)
 
             tokenizer = Qwen3EncoderDecoderTokenizer.from_pretrained(
-                tmpdir, num_sentinel_tokens=100  # Should be overridden
+                tmpdir,
+                num_sentinel_tokens=100,  # Should be overridden
             )
 
             # Should use config from file, not the argument
