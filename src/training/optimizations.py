@@ -50,8 +50,17 @@ def apply_liger_kernels(model: nn.Module, config) -> nn.Module:
     Returns:
         The optimized model (modified in-place).
     """
-    from liger_kernel.transformers.rms_norm import LigerRMSNorm
-    from liger_kernel.transformers.swiglu import LigerSwiGLUMLP
+    try:
+        from liger_kernel.transformers.rms_norm import LigerRMSNorm
+        from liger_kernel.transformers.swiglu import LigerSwiGLUMLP
+    except ImportError as exc:
+        logger.warning(
+            "Liger kernels requested but `liger_kernel` is not installed. "
+            "Install the optional 'optimizations' extra to enable. "
+            "Skipping Liger kernel replacements.",
+            exc_info=exc,
+        )
+        return model
 
     counts: Dict[str, int] = {"rms_norm": 0, "mlp": 0}
 
