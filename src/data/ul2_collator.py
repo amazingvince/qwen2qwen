@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import multiprocessing
+import multiprocessing.sharedctypes
 import warnings
 from typing import Any, Dict, List, Optional
 
 from torch import Tensor
 from UL2_5.collator_torch import UL25DataCollator as _UL25DataCollator
 from UL2_5.config import DenoiserSpec, Task, UL25Config
+
+# Type alias for shared progress value (result of multiprocessing.Value())
+_SharedProgress = multiprocessing.sharedctypes.Synchronized
 
 
 def ul2_recommended_config(
@@ -197,7 +202,22 @@ class _TokenizerShim:
 
 
 class UL2DataCollator:
-    """Project-facing UL2 collator implemented via UL2_5."""
+    """Project-facing UL2 collator implemented via UL2_5.
+
+    Args:
+        tokenizer: Tokenizer instance with sentinel token support.
+        config: UL25Config for denoiser settings.
+        max_length: Maximum encoder sequence length.
+        max_labels_length: Maximum decoder/labels sequence length.
+        pad_to_multiple_of: Pad sequences to multiple of this value.
+        decoder_start_token_id: Token ID to start decoder sequences.
+        return_task_info: Whether to include task_indices in batch output.
+        collate_on_cpu: Whether to move tensors to CPU after collation.
+        use_shared_progress: Use multiprocessing-safe shared memory for
+            curriculum progress. Required when using curriculum learning
+            with DataLoader num_workers > 0, otherwise worker processes
+            won't see progress updates from the main process.
+    """
 
     def __init__(
         self,
@@ -209,6 +229,7 @@ class UL2DataCollator:
         decoder_start_token_id: Optional[int] = None,
         return_task_info: bool = False,
         collate_on_cpu: bool = True,
+        use_shared_progress: bool = False,
     ) -> None:
         self.tokenizer = tokenizer
         self.config = config or ul2_recommended_config()
@@ -216,6 +237,12 @@ class UL2DataCollator:
         self.max_labels_length = max_labels_length
         self.pad_to_multiple_of = pad_to_multiple_of
         self._collate_on_cpu = collate_on_cpu
+
+        # Shared progress for curriculum with DataLoader workers
+        # multiprocessing.Value is picklable and shared across processes
+        self._shared_progress: Optional[_SharedProgress] = None
+        if use_shared_progress:
+            self._shared_progress = multiprocessing.Value("d", 0.0)
 
         if decoder_start_token_id is not None:
             self.decoder_start_token_id = int(decoder_start_token_id)
@@ -238,14 +265,35 @@ class UL2DataCollator:
 
     @property
     def progress(self) -> float:
+        """Get curriculum progress (0.0 to 1.0).
+
+        When use_shared_progress=True, reads from shared memory so all
+        DataLoader workers see the same value.
+        """
+        if self._shared_progress is not None:
+            return float(self._shared_progress.value)
         return float(getattr(self._impl, "progress", 0.0))
 
     @progress.setter
     def progress(self, value: float) -> None:
+        """Set curriculum progress (0.0 to 1.0).
+
+        When use_shared_progress=True, updates shared memory so all
+        DataLoader workers see the new value on their next batch.
+        Also updates the underlying _impl.progress for the current process.
+        """
+        value = float(value)
+        if self._shared_progress is not None:
+            self._shared_progress.value = value
         if hasattr(self._impl, "progress"):
-            self._impl.progress = float(value)
+            self._impl.progress = value
 
     def __call__(self, examples: List[Dict[str, Any]]) -> Dict[str, Tensor]:
+        # Sync shared progress to local _impl before collation
+        # This ensures DataLoader workers see the main process's progress updates
+        if self._shared_progress is not None and hasattr(self._impl, "progress"):
+            self._impl.progress = self._shared_progress.value
+
         if self._collate_on_cpu:
             cpu_examples: List[Dict[str, Any]] = []
             for ex in examples:
@@ -283,6 +331,9 @@ def create_collator_from_config(
 
     Automatically selects the appropriate UL2 config based on whether
     curriculum learning is enabled (ul2_curriculum_start/end are set).
+
+    When curriculum is enabled, uses shared memory for progress updates
+    so DataLoader workers see the correct curriculum weights.
 
     Args:
         tokenizer: Tokenizer instance with sentinel token support.
@@ -326,4 +377,6 @@ def create_collator_from_config(
         max_labels_length=getattr(data_config, "max_decoder_length", 128),
         collate_on_cpu=getattr(data_config, "dataloader_collate_on_cpu", True),
         return_task_info=return_task_info,
+        # Enable shared progress for curriculum to work with DataLoader workers
+        use_shared_progress=use_curriculum,
     )
