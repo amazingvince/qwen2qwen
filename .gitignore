@@ -217,15 +217,22 @@ logs/
 config.local.*
 *.local
 
-# Project-specific
+# Project-specific outputs
 qwen3-encdec-initialized/
 output/
 extracted-encoder/
-eval_results/
-mteb_results/
-extracted-encoder-5k/
 extracted-encoder*/
+eval_results/
 eval_results*/
+mteb_results/
+validation_output/
+validation-output/
+averaged_checkpoint/
+tensorboard_logs/
+
+# Large data files
+*.npy
+*.npz
 
 # Claude Code
 .claude/
