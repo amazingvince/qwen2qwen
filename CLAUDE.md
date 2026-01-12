@@ -6,16 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Qwen3-based encoder-decoder following the T5Gemma 2 architecture pattern. Converts Qwen3-0.6B into a bidirectional encoder trained with UL2 denoising objectives, then extracted as a standalone text embedding model.
 
+## Environment
+
+Use the `misc` conda environment for all operations. GPU (RTX 5090, bf16/tf32 supported) available.
+
 ## Key Commands
 
 ### Installation
 ```bash
-pip install -e ".[dev]"                    # Development
+pip install -e ".[dev]"                    # Development (pytest)
 pip install -e ".[dev,training]"           # Training (includes UL2_5)
+pip install -e ".[optimizations]"          # Liger kernels + cut-cross-entropy
 pip install -e ".[all]"                    # Everything
 ```
 
-### Linting (run before commits)
+### Linting (required before commits)
 ```bash
 ruff check --fix . && ruff format .
 ```
@@ -75,19 +80,13 @@ python scripts/run_evaluation.py --encoder_path ./extracted_encoder --run_sts --
 
 ## Project Structure
 
-```
-src/
-├── qwen3_encdec/          # Core model: config, tokenizer, encoder, decoder, seq2seq
-│   ├── encoder_only.py    # Standalone encoder for inference
-│   └── weight_initialization.py
-├── data/                  # UL2_5-backed data pipeline
-│   └── ul2_collator.py    # Adapts UL2_5 library
-├── training/              # Config, trainer, monitoring, memory utils
-├── extraction/            # Encoder extraction, checkpoint averaging, ST export
-└── evaluation/            # MTEB, STS, retrieval benchmarks
-scripts/                   # CLI entry points
-configs/                   # YAML configs for training
-```
+- `src/qwen3_encdec/` - Core model: config, tokenizer, encoder, decoder, seq2seq, `encoder_only.py` (standalone encoder for inference)
+- `src/data/` - UL2_5-backed data pipeline via `UL2DataCollator`
+- `src/training/` - Config, trainer, monitoring, memory utils, `optimizations.py` (Liger kernels, CCE, TF32)
+- `src/extraction/` - Encoder extraction, checkpoint averaging, sentence-transformers export
+- `src/evaluation/` - MTEB, STS, retrieval benchmarks
+- `scripts/` - CLI entry points (train.py, extract_encoder.py, etc.)
+- `configs/` - YAML training configs
 
 ## UL2 Training Tasks (T5Gemma 2 mixture, weights 1:1:1:1:4)
 
@@ -104,10 +103,11 @@ configs/                   # YAML configs for training
 Training configs enable by default:
 - **BF16**: Always use bf16, never fp16
 - **TF32**: 3x faster matmuls on Ampere+ GPUs
-- **Liger kernels**: Optimized RMSNorm, SwiGLU MLP
-- **Cut Cross Entropy**: 24GB → 1MB memory for loss computation
+- **Liger kernels**: Optimized RMSNorm, SwiGLU MLP (optional dep)
+- **Cut Cross Entropy**: 24GB → 1MB memory for loss computation (optional dep)
 - **Fused AdamW**: CUDA-accelerated optimizer
 - **Gradient checkpointing**: Enabled for memory efficiency
+- **torch.compile**: Disabled by default (causes issues with dynamic shapes in RoPE)
 
 ## Key Implementation Details
 
@@ -121,3 +121,11 @@ Training configs enable by default:
 ## Implementation Stories
 
 Detailed design docs in `plan/` directory (01-11) covering each component's implementation rationale.
+
+## Development Workflow
+
+- After code changes, always run `ruff check --fix . && ruff format .`
+- After code changes, run relevant tests
+- When signatures change, update type hints and docstrings
+- Commits should be atomic; conventional commit messages preferred
+- Work typically done in branches, squash merged to main
