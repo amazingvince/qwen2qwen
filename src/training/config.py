@@ -34,9 +34,7 @@ class DataConfig:
     max_encoder_length: int = 4096
     max_decoder_length: int = 2048
 
-    # UL2 specific - T5Gemma 2 task weights (R1, R2, X1, X2, S)
-    ul2_task_weights: List[int] = field(default_factory=lambda: [1, 1, 1, 1, 4])
-    # UL2_5 options
+    # UL2_5 options (uses UL25Config.recommended() denoiser mixture)
     ul2_length_adaptive: bool = False
     ul2_boundary_snapping: bool = False
     ul2_curriculum_start: Optional[List[float]] = None
