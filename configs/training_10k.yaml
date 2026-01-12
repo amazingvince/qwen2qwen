@@ -1,0 +1,79 @@
+# Training configuration for 10k steps test run
+# Usage: python scripts/train.py --config configs/training_10k.yaml
+
+model:
+  model_name_or_path: "./qwen3-encdec-initialized"
+  tokenizer_name_or_path: "./qwen3-encdec-initialized"
+  num_sentinel_tokens: 100
+  use_flash_attention: true
+
+data:
+  dataset_name: "HuggingFaceFW/fineweb-edu"
+  dataset_config: null
+  text_column: "text"
+  streaming: true
+  max_seq_length: 1024
+  max_encoder_length: 512
+  max_decoder_length: 256
+  ul2_length_adaptive: false
+  ul2_boundary_snapping: false
+  ul2_curriculum_start: null
+  ul2_curriculum_end: null
+  preprocessing_num_workers: 2
+  shuffle_buffer_size: 1000
+  dataloader_pin_memory: true
+  dataloader_prefetch_factor: 2
+  dataloader_persistent_workers: true
+  dataloader_collate_on_cpu: true
+
+training:
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 32
+
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  max_grad_norm: 1.0
+
+  num_train_steps: 10000
+  warmup_steps: 500
+  lr_scheduler_type: "cosine"
+
+  bf16: true
+
+  # GPU Optimizations
+  use_tf32: true
+  use_liger_kernels: true
+  use_cut_cross_entropy: true
+  torch_compile: false
+  use_fused_adamw: true
+
+  save_steps: 2000
+  save_total_limit: 5
+
+  eval_steps: 500
+  eval_samples: 100
+
+  logging_steps: 50
+  report_to: []  # Disabled - set to ["wandb"] to enable
+
+  seed: 42
+
+infra:
+  output_dir: "./output"
+  logging_dir: "./logs"
+  distributed_type: "no"
+  fsdp_sharding_strategy: null
+  fsdp_activation_checkpointing: false
+  fsdp_cpu_offload: false
+  deepspeed_config: null
+  num_gpus: 1
+  wandb_project: "qwen3-encoder-decoder"
+  wandb_entity: null
+  wandb_run_name: null
+  wandb_watch: null
+  wandb_log_model: false
+  wandb_tags: ["qwen3-encdec", "10k-test"]
