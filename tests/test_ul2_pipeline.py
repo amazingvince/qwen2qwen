@@ -295,3 +295,59 @@ class TestCurriculumProgress:
         for expected in [0.0, 0.25, 0.5, 0.75, 1.0]:
             collator.progress = expected
             assert abs(collator.progress - expected) < 1e-6
+
+
+class TestSharedProgress:
+    """Regression tests for multiprocessing-safe shared progress."""
+
+    def test_shared_progress_disabled_by_default(self):
+        """By default, shared progress is not used."""
+        tokenizer = MockTokenizer()
+        collator = UL2DataCollator(tokenizer, config=ul2_recommended_config())
+        assert collator._shared_progress is None
+
+    def test_shared_progress_enabled_when_requested(self):
+        """use_shared_progress=True creates a multiprocessing.Value."""
+        tokenizer = MockTokenizer()
+        collator = UL2DataCollator(
+            tokenizer,
+            config=ul2_recommended_config(),
+            use_shared_progress=True,
+        )
+        assert collator._shared_progress is not None
+
+    def test_shared_progress_updates_visible(self):
+        """Progress updates via shared memory are immediately visible."""
+        tokenizer = MockTokenizer()
+        collator = UL2DataCollator(
+            tokenizer,
+            config=ul2_recommended_config(),
+            use_shared_progress=True,
+        )
+
+        for expected in [0.0, 0.25, 0.5, 0.75, 1.0]:
+            collator.progress = expected
+            assert abs(collator.progress - expected) < 1e-6
+            # Also verify the underlying shared value
+            assert abs(collator._shared_progress.value - expected) < 1e-6
+
+    def test_factory_enables_shared_progress_for_curriculum(self):
+        """Regression: factory must enable shared_progress when curriculum is set."""
+        tokenizer = MockTokenizer()
+        config = MockDataConfig(
+            ul2_curriculum_start=[0.2, 0.2, 0.2, 0.2, 0.2],
+            ul2_curriculum_end=[0.1, 0.1, 0.1, 0.1, 0.5],
+        )
+        collator = create_collator_from_config(tokenizer, config)
+
+        # Shared progress must be enabled for curriculum to work with workers
+        assert collator._shared_progress is not None
+
+    def test_factory_no_shared_progress_without_curriculum(self):
+        """Without curriculum, shared progress is not needed."""
+        tokenizer = MockTokenizer()
+        config = MockDataConfig()  # No curriculum
+        collator = create_collator_from_config(tokenizer, config)
+
+        # No curriculum means no need for shared progress overhead
+        assert collator._shared_progress is None
