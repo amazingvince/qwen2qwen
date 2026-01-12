@@ -451,8 +451,21 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
             use_cce = getattr(self.config, "use_cut_cross_entropy", False)
 
             if use_cce:
-                from cut_cross_entropy import linear_cross_entropy
+                try:
+                    from cut_cross_entropy import linear_cross_entropy
+                except ImportError as exc:
+                    use_cce = False
+                    if not getattr(self, "_cce_warned", False):
+                        logger.warning(
+                            "use_cut_cross_entropy is enabled, but "
+                            "`cut_cross_entropy` is not installed. Falling back "
+                            "to standard cross entropy. Install the "
+                            "'optimizations' extra to enable CCE.",
+                            exc_info=exc,
+                        )
+                        self._cce_warned = True
 
+            if use_cce:
                 # CCE computes loss directly from hidden states and lm_head weight
                 # This avoids materializing the full [batch*seq, vocab_size] logits tensor
                 # CCE requires bf16 for backward pass
