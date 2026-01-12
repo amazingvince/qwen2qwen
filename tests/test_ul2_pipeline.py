@@ -150,6 +150,8 @@ class MockDataConfig:
     ul2_curriculum_end: list = None
     ul2_unpad_encoder: bool = False
     ul2_unpad_decoder: bool = False
+    ul2_length_adaptive: bool = False
+    ul2_boundary_snapping: bool = False
 
 
 class TestCreateCollatorFromConfig:
@@ -189,6 +191,87 @@ class TestCreateCollatorFromConfig:
 
         assert collator.config.enable_unpad_encoder is True
         assert collator.config.enable_unpad_decoder is True
+
+    def test_factory_passes_length_adaptive_option(self):
+        """Regression test: ul2_length_adaptive must be honored."""
+        tokenizer = MockTokenizer()
+        config = MockDataConfig(ul2_length_adaptive=True)
+        collator = create_collator_from_config(tokenizer, config)
+
+        assert collator.config.enable_length_adaptive is True
+
+    def test_factory_passes_boundary_snapping_option(self):
+        """Regression test: ul2_boundary_snapping must be honored."""
+        tokenizer = MockTokenizer()
+        config = MockDataConfig(ul2_boundary_snapping=True)
+        collator = create_collator_from_config(tokenizer, config)
+
+        assert collator.config.enable_boundary_snapping is True
+
+    def test_factory_passes_curriculum_arrays(self):
+        """Regression test: curriculum_start/end must be passed, not just detected."""
+        tokenizer = MockTokenizer()
+        start = [0.1, 0.2, 0.3, 0.4, 0.5]
+        end = [0.5, 0.4, 0.3, 0.2, 0.1]
+        config = MockDataConfig(
+            ul2_curriculum_start=start,
+            ul2_curriculum_end=end,
+        )
+        collator = create_collator_from_config(tokenizer, config)
+
+        # The actual values should be passed through, not just used for detection
+        assert collator.config.curriculum_start == start
+        assert collator.config.curriculum_end == end
+
+    def test_factory_passes_all_ul2_options_together(self):
+        """Regression test: all UL2 options must work together."""
+        tokenizer = MockTokenizer()
+        config = MockDataConfig(
+            ul2_unpad_encoder=True,
+            ul2_unpad_decoder=True,
+            ul2_length_adaptive=True,
+            ul2_boundary_snapping=True,
+            ul2_curriculum_start=[0.2, 0.2, 0.2, 0.2, 0.2],
+            ul2_curriculum_end=[0.1, 0.1, 0.1, 0.1, 0.5],
+        )
+        collator = create_collator_from_config(tokenizer, config)
+
+        assert collator.config.enable_unpad_encoder is True
+        assert collator.config.enable_unpad_decoder is True
+        assert collator.config.enable_length_adaptive is True
+        assert collator.config.enable_boundary_snapping is True
+        assert collator.config.curriculum_start == [0.2, 0.2, 0.2, 0.2, 0.2]
+        assert collator.config.curriculum_end == [0.1, 0.1, 0.1, 0.1, 0.5]
+
+
+class TestUL2ConfigWrappers:
+    """Regression tests for the config wrapper functions."""
+
+    def test_recommended_config_passes_length_adaptive(self):
+        cfg = ul2_recommended_config(enable_length_adaptive=True)
+        assert cfg.enable_length_adaptive is True
+
+    def test_recommended_config_passes_boundary_snapping(self):
+        cfg = ul2_recommended_config(enable_boundary_snapping=True)
+        assert cfg.enable_boundary_snapping is True
+
+    def test_curriculum_config_passes_length_adaptive(self):
+        cfg = ul2_recommended_with_curriculum_config(enable_length_adaptive=True)
+        assert cfg.enable_length_adaptive is True
+
+    def test_curriculum_config_passes_boundary_snapping(self):
+        cfg = ul2_recommended_with_curriculum_config(enable_boundary_snapping=True)
+        assert cfg.enable_boundary_snapping is True
+
+    def test_curriculum_config_passes_curriculum_start(self):
+        start = [0.1, 0.2, 0.3]
+        cfg = ul2_recommended_with_curriculum_config(curriculum_start=start)
+        assert cfg.curriculum_start == start
+
+    def test_curriculum_config_passes_curriculum_end(self):
+        end = [0.3, 0.2, 0.1]
+        cfg = ul2_recommended_with_curriculum_config(curriculum_end=end)
+        assert cfg.curriculum_end == end
 
 
 class TestCurriculumProgress:
