@@ -17,9 +17,6 @@ from pathlib import Path
 
 import torch
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from qwen3_encdec import Qwen3EncoderDecoderTokenizer
 from qwen3_encdec.weight_initialization import (
     initialize_from_qwen3,
@@ -138,7 +135,9 @@ def main():
     # Update config with special token IDs for generation
     model.config.pad_token_id = tokenizer.pad_token_id
     model.config.eos_token_id = tokenizer.eos_token_id
-    model.config.decoder_start_token_id = tokenizer.pad_token_id  # Use pad as decoder start
+    model.config.decoder_start_token_id = (
+        tokenizer.pad_token_id
+    )  # Use pad as decoder start
     model.config.save_pretrained(output_path)
 
     # Save initialization info

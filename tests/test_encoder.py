@@ -1,7 +1,5 @@
 """Unit tests for Qwen3 Encoder implementation."""
 
-import math
-
 import pytest
 import torch
 import torch.nn as nn
@@ -20,7 +18,6 @@ from qwen3_encdec.modeling_qwen3_encoder import (
     repeat_kv,
     rotate_half,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -101,7 +98,7 @@ class TestQwen3RMSNorm:
         hidden_size = 64
         norm = Qwen3RMSNorm(hidden_size)
 
-        for dtype in [torch.float32, torch.float16, torch.bfloat16]:
+        for dtype in [torch.float32, torch.bfloat16]:
             norm = norm.to(dtype)
             x = torch.randn(2, 10, hidden_size, dtype=dtype)
             output = norm(x)
@@ -555,7 +552,11 @@ class TestQwen3Encoder:
         for seq_len in [4, 16, 32, 64]:
             input_ids = torch.randint(0, 100, (2, seq_len))
             output = encoder(input_ids)
-            assert output.last_hidden_state.shape == (2, seq_len, small_config.hidden_size)
+            assert output.last_hidden_state.shape == (
+                2,
+                seq_len,
+                small_config.hidden_size,
+            )
 
     def test_attention_mask_effect(self, small_config):
         """Test that attention mask affects output."""
@@ -571,7 +572,9 @@ class TestQwen3Encoder:
         # Masked attention (mask last 4 tokens)
         mask_partial = torch.ones(1, 8)
         mask_partial[:, 4:] = 0
-        output_partial = encoder(input_ids, attention_mask=mask_partial).last_hidden_state
+        output_partial = encoder(
+            input_ids, attention_mask=mask_partial
+        ).last_hidden_state
 
         # Outputs should differ
         assert not torch.allclose(output_full, output_partial)
@@ -651,7 +654,7 @@ class TestEncoderIntegration:
 
     def test_dtype_consistency(self, small_config):
         """Test encoder handles different dtypes."""
-        for dtype in [torch.float32, torch.float16]:
+        for dtype in [torch.float32, torch.bfloat16]:
             encoder = Qwen3Encoder(small_config).to(dtype)
             input_ids = torch.randint(0, 100, (1, 8))
 
@@ -745,7 +748,9 @@ class TestEncoderGPU:
         # Partial mask
         mask_partial = torch.ones(2, 16).cuda()
         mask_partial[:, 8:] = 0
-        output_partial = encoder(input_ids, attention_mask=mask_partial).last_hidden_state
+        output_partial = encoder(
+            input_ids, attention_mask=mask_partial
+        ).last_hidden_state
 
         # Outputs should differ
         assert not torch.allclose(output_full, output_partial)
@@ -772,16 +777,6 @@ class TestEncoderGPU:
         output = encoder(input_ids)
 
         assert output.last_hidden_state.dtype == torch.bfloat16
-        assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
-
-    def test_mixed_precision_fp16(self, gpu_config):
-        """Test FP16 forward pass on GPU."""
-        encoder = Qwen3Encoder(gpu_config).cuda().to(torch.float16)
-        input_ids = torch.randint(0, 100, (2, 16)).cuda()
-
-        output = encoder(input_ids)
-
-        assert output.last_hidden_state.dtype == torch.float16
         assert output.last_hidden_state.shape == (2, 16, gpu_config.hidden_size)
 
     def test_sdpa_on_gpu(self, gpu_config):

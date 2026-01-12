@@ -15,7 +15,7 @@ data:
   max_seq_length: 1024
   max_encoder_length: 512
   max_decoder_length: 256
-  ul2_task_weights: [1, 1, 1, 1, 4] # T5Gemma 2: R1, R2, X1, X2, S (4x weight)
+  # UL2_5 options (uses UL25Config.recommended() denoiser mixture)
   ul2_length_adaptive: false
   ul2_boundary_snapping: false
   ul2_curriculum_start: null
@@ -44,7 +44,6 @@ training:
   lr_scheduler_type: "cosine"
 
   bf16: true
-  fp16: false
 
   # GPU Optimizations
   use_tf32: true

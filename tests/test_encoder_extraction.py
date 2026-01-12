@@ -14,7 +14,6 @@ from src.qwen3_encdec.encoder_only import (
     Qwen3StandaloneEncoderModel,
 )
 
-
 # =============================================================================
 # Test Qwen3EncoderConfig
 # =============================================================================
@@ -421,9 +420,7 @@ class TestCheckpointAverager:
                 averaged = load_file(model_file)
             else:
                 averaged = torch.load(model_file)
-            assert torch.allclose(
-                averaged["layer.weight"], torch.full((2, 2), 3.0)
-            )
+            assert torch.allclose(averaged["layer.weight"], torch.full((2, 2), 3.0))
 
 
 # =============================================================================
@@ -436,10 +433,11 @@ class TestSentenceTransformersExport:
 
     def test_create_config(self):
         """Test creating sentence-transformers config."""
+        import json
+
         from src.extraction.sentence_transformers_export import (
             create_sentence_transformers_config,
         )
-        import json
 
         with tempfile.TemporaryDirectory() as tmpdir:
             create_sentence_transformers_config(
@@ -469,10 +467,11 @@ class TestSentenceTransformersExport:
 
     def test_create_config_without_normalize(self):
         """Test creating config without normalization."""
+        import json
+
         from src.extraction.sentence_transformers_export import (
             create_sentence_transformers_config,
         )
-        import json
 
         with tempfile.TemporaryDirectory() as tmpdir:
             create_sentence_transformers_config(

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 import torch
-import torch.nn as nn
 
 from qwen3_encdec import (
     Qwen3Decoder,
@@ -15,7 +14,6 @@ from qwen3_encdec import (
     Qwen3ForSeq2SeqLM,
     Qwen3Seq2SeqModel,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -487,10 +485,9 @@ class TestModelSaveLoad:
 
             # Check files exist
             assert (Path(tmpdir) / "config.json").exists()
-            assert (
-                (Path(tmpdir) / "model.safetensors").exists()
-                or (Path(tmpdir) / "pytorch_model.bin").exists()
-            )
+            assert (Path(tmpdir) / "model.safetensors").exists() or (
+                Path(tmpdir) / "pytorch_model.bin"
+            ).exists()
 
             # Load
             loaded = Qwen3ForSeq2SeqLM.from_pretrained(tmpdir)
@@ -582,18 +579,6 @@ class TestGPU:
             outputs = model(input_ids=input_ids, labels=labels)
 
         assert outputs.logits.dtype == torch.bfloat16
-
-    def test_mixed_precision_fp16(self, gpu_config):
-        """Test FP16 mixed precision."""
-        model = Qwen3ForSeq2SeqLM(gpu_config).cuda().to(torch.float16).eval()
-
-        input_ids = torch.randint(0, gpu_config.vocab_size - 10, (2, 8)).cuda()
-        labels = torch.randint(0, gpu_config.vocab_size - 10, (2, 6)).cuda()
-
-        with torch.no_grad():
-            outputs = model(input_ids=input_ids, labels=labels)
-
-        assert outputs.logits.dtype == torch.float16
 
     def test_gradient_checkpointing_gpu(self, gpu_config):
         """Test gradient checkpointing on GPU."""

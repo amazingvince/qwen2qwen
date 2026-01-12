@@ -108,9 +108,7 @@ class Qwen3EncoderWrapper:
             self.use_sentence_transformers = True
             logger.info(f"Loaded model via SentenceTransformers from {model_path}")
         except Exception as e:
-            logger.info(
-                f"SentenceTransformers loading failed, trying direct load: {e}"
-            )
+            logger.info(f"SentenceTransformers loading failed, trying direct load: {e}")
 
             # Fall back to direct loading
             from qwen3_encdec.encoder_only import Qwen3StandaloneEncoderModel
@@ -127,6 +125,7 @@ class Qwen3EncoderWrapper:
         """Return model metadata for MTEB."""
         try:
             from mteb.models.wrapper import ModelMeta
+
             return ModelMeta(
                 name="qwen3-encoder",
                 revision=None,
@@ -160,11 +159,12 @@ class Qwen3EncoderWrapper:
 
         # Handle MTEB v2 DataLoader input
         from torch.utils.data import DataLoader
+
         if isinstance(sentences_or_dataloader, DataLoader):
             return self._encode_dataloader(
                 sentences_or_dataloader,
                 normalize_embeddings=normalize_embeddings,
-                **kwargs
+                **kwargs,
             )
 
         # MTEB v1 style: list of sentences
@@ -232,7 +232,9 @@ class Qwen3EncoderWrapper:
                     embeddings = outputs.pooler_output
 
                     if normalize_embeddings:
-                        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+                        embeddings = torch.nn.functional.normalize(
+                            embeddings, p=2, dim=1
+                        )
 
                     embeddings = embeddings.cpu()
 

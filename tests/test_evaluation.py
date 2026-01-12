@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import List
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -132,7 +131,9 @@ class TestSTSEvaluator:
 
         def mock_encode(sentences, **kwargs):
             # Return random embeddings
-            embeddings = np.random.randn(len(sentences), embedding_dim).astype(np.float32)
+            embeddings = np.random.randn(len(sentences), embedding_dim).astype(
+                np.float32
+            )
             # Normalize
             embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
             return embeddings
@@ -183,7 +184,9 @@ class TestRetrievalEvaluator:
         mock_model = MagicMock()
 
         def mock_encode(sentences, **kwargs):
-            embeddings = np.random.randn(len(sentences), embedding_dim).astype(np.float32)
+            embeddings = np.random.randn(len(sentences), embedding_dim).astype(
+                np.float32
+            )
             embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
             return embeddings
 
@@ -198,11 +201,13 @@ class TestRetrievalEvaluator:
         evaluator = RetrievalEvaluator(mock_model, device="cpu", use_faiss=False)
 
         # Perfect retrieval: first retrieved doc is always relevant
-        retrieved_indices = np.array([
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            [1, 0, 2, 3, 4, 5, 6, 7, 8, 9],
-            [2, 0, 1, 3, 4, 5, 6, 7, 8, 9],
-        ])
+        retrieved_indices = np.array(
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                [1, 0, 2, 3, 4, 5, 6, 7, 8, 9],
+                [2, 0, 1, 3, 4, 5, 6, 7, 8, 9],
+            ]
+        )
         relevant_docs = [[0], [1], [2]]
 
         metrics = evaluator.compute_metrics(retrieved_indices, relevant_docs)
@@ -219,11 +224,13 @@ class TestRetrievalEvaluator:
         evaluator = RetrievalEvaluator(mock_model, device="cpu", use_faiss=False)
 
         # Partial retrieval: relevant doc at various positions
-        retrieved_indices = np.array([
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],  # doc 0 at pos 0, rank 1
-            [5, 1, 2, 3, 4, 0, 6, 7, 8, 9],  # doc 1 at pos 1, rank 2
-            [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],  # doc 2 at pos 7, rank 8
-        ])
+        retrieved_indices = np.array(
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],  # doc 0 at pos 0, rank 1
+                [5, 1, 2, 3, 4, 0, 6, 7, 8, 9],  # doc 1 at pos 1, rank 2
+                [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],  # doc 2 at pos 7, rank 8
+            ]
+        )
         relevant_docs = [[0], [1], [2]]
 
         metrics = evaluator.compute_metrics(retrieved_indices, relevant_docs)
@@ -233,7 +240,7 @@ class TestRetrievalEvaluator:
         assert abs(metrics["mrr@10"] - expected_mrr) < 0.01
 
         # Recall@1 = 1/3 (only first query has relevant at pos 0)
-        assert abs(metrics["recall@1"] - 1/3) < 0.01
+        assert abs(metrics["recall@1"] - 1 / 3) < 0.01
 
         # Recall@10 = 3/3 = 1.0 (all have relevant in top 10)
         assert metrics["recall@10"] == 1.0
@@ -267,15 +274,22 @@ class TestRetrievalEvaluator:
 
         # Create embeddings where we know the ranking
         query_embeddings = np.array([[1.0, 0.0, 0.0]], dtype=np.float32)
-        doc_embeddings = np.array([
-            [0.1, 0.9, 0.0],  # Low similarity to query
-            [0.9, 0.1, 0.0],  # High similarity to query
-            [0.5, 0.5, 0.0],  # Medium similarity
-        ], dtype=np.float32)
+        doc_embeddings = np.array(
+            [
+                [0.1, 0.9, 0.0],  # Low similarity to query
+                [0.9, 0.1, 0.0],  # High similarity to query
+                [0.5, 0.5, 0.0],  # Medium similarity
+            ],
+            dtype=np.float32,
+        )
 
         # Normalize
-        query_embeddings = query_embeddings / np.linalg.norm(query_embeddings, axis=1, keepdims=True)
-        doc_embeddings = doc_embeddings / np.linalg.norm(doc_embeddings, axis=1, keepdims=True)
+        query_embeddings = query_embeddings / np.linalg.norm(
+            query_embeddings, axis=1, keepdims=True
+        )
+        doc_embeddings = doc_embeddings / np.linalg.norm(
+            doc_embeddings, axis=1, keepdims=True
+        )
 
         scores, indices = evaluator.search(query_embeddings, doc_embeddings, k=3)
 
@@ -300,7 +314,9 @@ class TestDecoderPoolWrapper:
 
         # Mean pooling implementation
         attention_mask_expanded = attention_mask.unsqueeze(-1)
-        embeddings = (hidden_states * attention_mask_expanded).sum(1) / attention_mask_expanded.sum(1)
+        embeddings = (hidden_states * attention_mask_expanded).sum(
+            1
+        ) / attention_mask_expanded.sum(1)
 
         assert embeddings.shape == (batch_size, hidden_dim)
         assert not torch.isnan(embeddings).any()
@@ -447,10 +463,12 @@ class TestIntegration:
         mock_model = MagicMock()
         evaluator = RetrievalEvaluator(mock_model, device="cpu", use_faiss=False)
 
-        retrieved_indices = np.array([
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            [1, 0, 2, 3, 4, 5, 6, 7, 8, 9],
-        ])
+        retrieved_indices = np.array(
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                [1, 0, 2, 3, 4, 5, 6, 7, 8, 9],
+            ]
+        )
         relevant_docs = [[0], [1]]
 
         metrics1 = evaluator.compute_metrics(retrieved_indices, relevant_docs)

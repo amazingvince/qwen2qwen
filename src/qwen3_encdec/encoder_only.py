@@ -205,7 +205,9 @@ class Qwen3EncoderPooler(nn.Module):
 
         elif self.pooling_mode == "mean":
             # Mean pooling over valid tokens
-            mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size()).float()
+            mask_expanded = (
+                attention_mask.unsqueeze(-1).expand(hidden_states.size()).float()
+            )
             sum_embeddings = torch.sum(hidden_states * mask_expanded, dim=1)
             sum_mask = mask_expanded.sum(dim=1).clamp(min=1e-9)
             pooled = sum_embeddings / sum_mask
@@ -216,7 +218,9 @@ class Qwen3EncoderPooler(nn.Module):
 
             # Create position weights (linear increase)
             positions = torch.arange(seq_len, device=hidden_states.device).float()
-            weights = (positions + 1).unsqueeze(0).expand(batch_size, -1)  # (batch, seq)
+            weights = (
+                (positions + 1).unsqueeze(0).expand(batch_size, -1)
+            )  # (batch, seq)
 
             # Apply attention mask
             weights = weights * attention_mask.float()
@@ -279,7 +283,9 @@ class Qwen3StandaloneEncoderModel(PreTrainedModel):
         # (Qwen3Encoder expects Qwen3EncoderDecoderConfig)
         # We need to set sentinel tokens correctly for validation
         sentinel_start = config.vocab_size - 100 if config.vocab_size > 100 else 0
-        num_sentinels = config.vocab_size - sentinel_start if config.vocab_size > 100 else 0
+        num_sentinels = (
+            config.vocab_size - sentinel_start if config.vocab_size > 100 else 0
+        )
 
         self._enc_dec_config = Qwen3EncoderDecoderConfig(
             vocab_size=config.vocab_size,
@@ -342,14 +348,18 @@ class Qwen3StandaloneEncoderModel(PreTrainedModel):
             Qwen3EncoderPoolerOutput with last_hidden_state and pooler_output
         """
         output_attentions = (
-            output_attentions if output_attentions is not None else self.config.output_attentions
+            output_attentions
+            if output_attentions is not None
+            else self.config.output_attentions
         )
         output_hidden_states = (
             output_hidden_states
             if output_hidden_states is not None
             else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         # Create attention mask if not provided
         if attention_mask is None:
@@ -432,7 +442,7 @@ class Qwen3StandaloneEncoderModel(PreTrainedModel):
 
                 iterator = tqdm(iterator, desc="Encoding", unit="batch")
             except ImportError:
-                pass  # tqdm not available, proceed without progress bar
+                pass  # tqdm unavailable, proceed without progress bar
 
         with torch.no_grad():
             for i in iterator:

@@ -1,7 +1,6 @@
 """Tests for weight initialization utilities."""
 
 import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +11,6 @@ from src.qwen3_encdec.weight_initialization import (
     Qwen3WeightMapper,
     verify_gradient_flow,
 )
-
 
 # =============================================================================
 # Fixtures

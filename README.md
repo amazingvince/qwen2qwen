@@ -2,9 +2,30 @@
 
 A Qwen3-based encoder-decoder model following the T5Gemma 2 architecture pattern. This project converts Qwen3-0.6B into a bidirectional encoder that can be trained using UL2 denoising objectives and extracted as a standalone text embedding model.
 
+---
+
+- [Qwen3 Encoder-Decoder](#qwen3-encoder-decoder)
+  - [Overview](#overview)
+  - [Architecture](#architecture)
+  - [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Training](#training)
+  - [Encoder Extraction](#encoder-extraction)
+  - [Evaluation](#evaluation)
+  - [Project Structure](#project-structure)
+  - [Testing](#testing)
+  - [Model Details](#model-details)
+  - [Troubleshooting](#troubleshooting)
+  - [License](#license)
+  - [Citation](#citation)
+  - [Acknowledgments](#acknowledgments)
+
+---
+
 ## Overview
 
 The key insight from T5Gemma 2 is that you can take a pretrained decoder-only LLM and convert it into a powerful encoder-decoder by:
+
 1. Making the encoder bidirectional (removing the causal mask)
 2. Training with UL2 span corruption objectives
 3. Extracting just the encoder for embedding tasks
@@ -37,6 +58,7 @@ This project implements this approach for Qwen3-0.6B, creating a ~300M parameter
 ```
 
 **Key Features:**
+
 - Bidirectional encoder (no causal mask)
 - Merged self/cross attention in decoder (parameter efficient)
 - Tied embeddings across encoder, decoder, and LM head
@@ -62,7 +84,8 @@ pip install mteb sentence-transformers faiss-cpu scipy scikit-learn
 - Python >= 3.9
 - PyTorch >= 2.0
 - Transformers >= 4.40.0
-- CUDA-capable GPU (recommended: 24GB+ VRAM for training)
+- CUDA GPU with BF16 support (Ampere or newer recommended)
+- 24GB+ VRAM for training (inference works on smaller GPUs)
 
 ## Quick Start
 
@@ -145,15 +168,21 @@ python scripts/run_evaluation.py \
 
 ### UL2 Denoising Tasks
 
-The training uses 5 denoising tasks with configurable weights (default 1:1:1:1:4):
+Training uses the UL2_5 library with `UL25Config.recommended()` for optimized denoising. The default mixture includes:
 
-| Task | Mean Span | Corruption | Description |
-|------|-----------|------------|-------------|
-| R-Denoiser 1 | 3 | 15% | Short spans, low corruption |
-| R-Denoiser 2 | 12 | 50% | Medium spans, high corruption |
-| X-Denoiser 1 | 32 | 15% | Long spans, low corruption |
-| X-Denoiser 2 | 32 | 50% | Long spans, high corruption |
-| S-Denoiser | N/A | 75% | Prefix-to-suffix (4x weight) |
+| Task        | Type      | Description                                        |
+| ----------- | --------- | -------------------------------------------------- |
+| R-Denoisers | SPAN      | Short/medium span corruption (regular denoising)   |
+| X-Denoisers | SPAN      | Long span corruption (extreme denoising)           |
+| S-Denoisers | PREFIX    | Prefix-to-suffix generation (sequential denoising) |
+| I-Denoiser  | INFILLING | Text infilling (gap filling)                       |
+
+For curriculum learning (task weights shift during training):
+
+```python
+from data import ul2_recommended_with_curriculum_config
+config = ul2_recommended_with_curriculum_config()
+```
 
 ### Training Configuration
 
@@ -201,8 +230,10 @@ accelerate launch scripts/train.py --config configs/training_config.yaml
 The training infrastructure includes several memory optimizations:
 
 - **Gradient Checkpointing**: Enabled by default to reduce memory
-- **Mixed Precision**: BF16 training for faster computation
+- **BF16 Precision**: All training uses BF16 (FP16 is not supported)
 - **Streaming Data**: Load data on-the-fly without full materialization
+- **Cut Cross Entropy**: Memory-efficient loss computation (24GB → 1MB)
+- **Liger Kernels**: Optimized RMSNorm and SwiGLU MLP
 
 ## Encoder Extraction
 
@@ -219,12 +250,12 @@ python scripts/extract_encoder.py \
 
 ### Options
 
-| Flag | Description |
-|------|-------------|
-| `--pooling_mode` | Pooling strategy: `mean`, `cls`, `last` (default: mean) |
-| `--export_sentence_transformers` | Export in sentence-transformers format |
-| `--average_checkpoints N` | Average last N checkpoints for robustness |
-| `--verify` | Run verification tests after extraction |
+| Flag                             | Description                                             |
+| -------------------------------- | ------------------------------------------------------- |
+| `--pooling_mode`                 | Pooling strategy: `mean`, `cls`, `last` (default: mean) |
+| `--export_sentence_transformers` | Export in sentence-transformers format                  |
+| `--average_checkpoints N`        | Average last N checkpoints for robustness               |
+| `--verify`                       | Run verification tests after extraction                 |
 
 ### Using the Extracted Encoder
 
@@ -272,6 +303,7 @@ python scripts/quick_eval.py --encoder_path ./extracted_encoder
 ```
 
 This tests:
+
 - Basic encoding functionality
 - Semantic similarity (similar sentences should have higher similarity)
 - Embedding diversity (different sentences should produce different embeddings)
@@ -289,6 +321,7 @@ python scripts/run_evaluation.py \
 ```
 
 Evaluates on:
+
 - STS Benchmark (STS-B)
 - SICK Relatedness
 
@@ -339,6 +372,7 @@ python scripts/run_evaluation.py \
 ```
 
 Compares against:
+
 - Qwen3-0.6B with mean pooling (baseline without bidirectional training)
 - E5-base
 - GTE-base
@@ -406,25 +440,25 @@ pytest tests/test_evaluation.py -v
 
 ### Configuration
 
-| Parameter | Value |
-|-----------|-------|
-| Hidden Size | 1024 |
-| Intermediate Size | 2816 |
-| Num Layers | 28 (encoder) + 28 (decoder) |
-| Num Attention Heads | 16 |
-| Num KV Heads | 8 (GQA) |
-| Vocab Size | 152,036 (151,936 + 100 sentinels) |
-| Max Position | 32,768 |
-| RoPE Base | 1,000,000 |
+| Parameter           | Value                             |
+| ------------------- | --------------------------------- |
+| Hidden Size         | 1024                              |
+| Intermediate Size   | 2816                              |
+| Num Layers          | 28 (encoder) + 28 (decoder)       |
+| Num Attention Heads | 16                                |
+| Num KV Heads        | 8 (GQA)                           |
+| Vocab Size          | 152,036 (151,936 + 100 sentinels) |
+| Max Position        | 32,768                            |
+| RoPE Base           | 1,000,000                         |
 
 ### Parameter Count
 
-| Component | Parameters |
-|-----------|------------|
-| Encoder | ~300M |
-| Decoder | ~300M |
-| Shared Embeddings | ~156M |
-| **Total** | ~600M (with tied embeddings) |
+| Component         | Parameters                   |
+| ----------------- | ---------------------------- |
+| Encoder           | ~300M                        |
+| Decoder           | ~300M                        |
+| Shared Embeddings | ~156M                        |
+| **Total**         | ~600M (with tied embeddings) |
 
 ## Troubleshooting
 

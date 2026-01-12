@@ -1,7 +1,6 @@
 """Tests for training execution and monitoring."""
 
 import numpy as np
-import pytest
 import torch
 
 from src.training.execution import (
@@ -11,12 +10,7 @@ from src.training.execution import (
     estimate_steps_for_tokens,
     estimate_training_time,
 )
-from src.training.monitor import (
-    MetricWindow,
-    TrainingMonitor,
-    compute_gradient_norm,
-)
-
+from src.training.monitor import MetricWindow, TrainingMonitor, compute_gradient_norm
 
 # =============================================================================
 # Test Phase Configuration

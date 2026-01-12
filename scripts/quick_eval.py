@@ -16,12 +16,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 import numpy as np
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def check_basic_encoding(model, verbose: bool = True) -> bool:
@@ -107,7 +103,7 @@ def check_semantic_similarity(model, verbose: bool = True) -> bool:
             if verbose:
                 status = "✓" if passed else "✗"
                 print(f"\n  Case {i + 1}:")
-                print(f"    Anchor: \"{case['anchor'][:40]}...\"")
+                print(f'    Anchor: "{case["anchor"][:40]}..."')
                 print(f"    Similar: {sim_similar:.4f}")
                 print(f"    Dissimilar: {sim_dissimilar:.4f}")
                 print(f"    {status} Similar > Dissimilar: {passed}")

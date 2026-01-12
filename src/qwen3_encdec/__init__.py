@@ -14,6 +14,12 @@ from .modeling_qwen3_decoder import (
     Qwen3DecoderPreTrainedModel,
     Qwen3MergedAttention,
 )
+from .modeling_qwen3_encdec import (
+    Qwen3ForSeq2SeqLM,
+    Qwen3Seq2SeqModel,
+    Qwen3Seq2SeqModelOutput,
+    Qwen3Seq2SeqPreTrainedModel,
+)
 from .modeling_qwen3_encoder import (
     Qwen3Encoder,
     Qwen3EncoderAttention,
@@ -28,12 +34,6 @@ from .modeling_qwen3_encoder import (
     repeat_kv,
     rotate_half,
 )
-from .modeling_qwen3_encdec import (
-    Qwen3ForSeq2SeqLM,
-    Qwen3Seq2SeqModel,
-    Qwen3Seq2SeqModelOutput,
-    Qwen3Seq2SeqPreTrainedModel,
-)
 from .tokenization_qwen3_encdec import (
     SENTINEL_TOKEN_TEMPLATE,
     Qwen3EncoderDecoderTokenizer,
@@ -47,7 +47,7 @@ from .weight_initialization import (
     verify_weight_initialization,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # Configuration

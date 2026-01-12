@@ -16,15 +16,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 from transformers import GenerationMixin, PreTrainedModel
-from transformers.modeling_outputs import (
-    BaseModelOutput,
-    ModelOutput,
-    Seq2SeqLMOutput,
-)
+from transformers.modeling_outputs import BaseModelOutput, ModelOutput, Seq2SeqLMOutput
 from transformers.utils import logging
 
 from .configuration_qwen3_encdec import Qwen3EncoderDecoderConfig
-from .modeling_qwen3_decoder import Qwen3Decoder, Qwen3DecoderOutput
+from .modeling_qwen3_decoder import Qwen3Decoder
 from .modeling_qwen3_encoder import Qwen3Encoder, Qwen3EncoderOutput
 
 logger = logging.get_logger(__name__)
@@ -202,8 +198,12 @@ class Qwen3Seq2SeqModel(Qwen3Seq2SeqPreTrainedModel):
         """
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else True
-        output_attentions = output_attentions if output_attentions is not None else False
-        output_hidden_states = output_hidden_states if output_hidden_states is not None else False
+        output_attentions = (
+            output_attentions if output_attentions is not None else False
+        )
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else False
+        )
 
         # Encode if encoder_outputs not provided
         if encoder_outputs is None:
@@ -419,7 +419,11 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
 
         # Prepare decoder inputs from labels if needed
-        if labels is not None and decoder_input_ids is None and decoder_inputs_embeds is None:
+        if (
+            labels is not None
+            and decoder_input_ids is None
+            and decoder_inputs_embeds is None
+        ):
             decoder_input_ids = self._shift_right(labels)
 
         # Get decoder hidden states from base model
@@ -449,36 +453,37 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
             if use_cce:
                 try:
                     from cut_cross_entropy import linear_cross_entropy
+                except ImportError as exc:
+                    use_cce = False
+                    if not getattr(self, "_cce_warned", False):
+                        logger.warning(
+                            "use_cut_cross_entropy is enabled, but "
+                            "`cut_cross_entropy` is not installed. Falling back "
+                            "to standard cross entropy. Install the "
+                            "'optimizations' extra to enable CCE.",
+                            exc_info=exc,
+                        )
+                        self._cce_warned = True
 
-                    # CCE computes loss directly from hidden states and lm_head weight
-                    # This avoids materializing the full [batch*seq, vocab_size] logits tensor
-                    # CCE requires bf16 or fp16 for backward pass
-                    hidden_states = outputs.last_hidden_state
-                    classifier_weight = self.lm_head.weight
-                    if hidden_states.dtype == torch.float32:
-                        hidden_states = hidden_states.bfloat16()
-                        classifier_weight = classifier_weight.bfloat16()
+            if use_cce:
+                # CCE computes loss directly from hidden states and lm_head weight
+                # This avoids materializing the full [batch*seq, vocab_size] logits tensor
+                # CCE requires bf16 for backward pass
+                hidden_states = outputs.last_hidden_state
+                classifier_weight = self.lm_head.weight
+                if hidden_states.dtype == torch.float32:
+                    hidden_states = hidden_states.bfloat16()
+                    classifier_weight = classifier_weight.bfloat16()
 
-                    loss = linear_cross_entropy(
-                        hidden_states.view(-1, self.config.hidden_size),
-                        classifier_weight,  # [vocab_size, hidden_size]
-                        labels.view(-1),
-                        ignore_index=-100,
-                    )
-                    # Only compute logits if needed for output
-                    if not return_dict or output_attentions or output_hidden_states:
-                        lm_logits = self.lm_head(outputs.last_hidden_state)
-                except ImportError:
-                    logger.warning_once(
-                        "Cut Cross Entropy not available, falling back to standard CE. "
-                        "Install with: pip install 'cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git'"
-                    )
+                loss = linear_cross_entropy(
+                    hidden_states.view(-1, self.config.hidden_size),
+                    classifier_weight,  # [vocab_size, hidden_size]
+                    labels.view(-1),
+                    ignore_index=-100,
+                )
+                # Only compute logits if needed for output
+                if not return_dict or output_attentions or output_hidden_states:
                     lm_logits = self.lm_head(outputs.last_hidden_state)
-                    loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-                    loss = loss_fct(
-                        lm_logits.view(-1, self.config.vocab_size),
-                        labels.view(-1),
-                    )
             else:
                 # Standard cross entropy
                 lm_logits = self.lm_head(outputs.last_hidden_state)
@@ -636,8 +641,8 @@ class Qwen3ForSeq2SeqLM(Qwen3Seq2SeqPreTrainedModel, GenerationMixin):
 
         # Copy old weights
         num_tokens_to_copy = min(old_num_tokens, new_num_tokens)
-        new_embeddings.weight.data[:num_tokens_to_copy] = (
-            old_embeddings.weight.data[:num_tokens_to_copy]
-        )
+        new_embeddings.weight.data[:num_tokens_to_copy] = old_embeddings.weight.data[
+            :num_tokens_to_copy
+        ]
 
         return new_embeddings

@@ -1,6 +1,6 @@
 """Training configuration dataclasses."""
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -34,13 +34,14 @@ class DataConfig:
     max_encoder_length: int = 4096
     max_decoder_length: int = 2048
 
-    # UL2 specific - T5Gemma 2 task weights (R1, R2, X1, X2, S)
-    ul2_task_weights: List[int] = field(default_factory=lambda: [1, 1, 1, 1, 4])
-    # UL2_5 options
+    # UL2_5 options (uses UL25Config.recommended() denoiser mixture)
     ul2_length_adaptive: bool = False
     ul2_boundary_snapping: bool = False
     ul2_curriculum_start: Optional[List[float]] = None
     ul2_curriculum_end: Optional[List[float]] = None
+    # Flash Attention unpad options (requires FA2 varlen kernels)
+    ul2_unpad_encoder: bool = False
+    ul2_unpad_decoder: bool = False
 
     # Preprocessing
     preprocessing_num_workers: int = 4
@@ -77,9 +78,8 @@ class TrainingConfig:
     warmup_steps: int = 1000
     lr_scheduler_type: str = "cosine"
 
-    # Precision
+    # Precision (bf16 only - fp16 not supported)
     bf16: bool = True
-    fp16: bool = False
 
     # GPU Optimizations
     use_tf32: bool = True  # Enable TF32 for matmuls (Ampere+)

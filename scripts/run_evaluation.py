@@ -26,13 +26,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,7 +122,9 @@ def run_sts_evaluation(
     # Print summary
     logger.info("\nSTS Results:")
     for name, result in results.items():
-        logger.info(f"  {name}: spearman={result.spearman:.4f}, pearson={result.pearson:.4f}")
+        logger.info(
+            f"  {name}: spearman={result.spearman:.4f}, pearson={result.pearson:.4f}"
+        )
 
     return {"results": results}
 
@@ -361,7 +359,15 @@ def main():
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     # Check if any evaluation is requested
-    if not any([args.run_mteb, args.run_sts, args.run_retrieval, args.compare_baselines, args.run_all]):
+    if not any(
+        [
+            args.run_mteb,
+            args.run_sts,
+            args.run_retrieval,
+            args.compare_baselines,
+            args.run_all,
+        ]
+    ):
         parser.error("At least one evaluation type must be specified")
 
     results = {}

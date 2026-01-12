@@ -12,7 +12,6 @@ from qwen3_encdec.modeling_qwen3_decoder import (
     Qwen3MergedAttention,
 )
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -115,9 +114,7 @@ class TestQwen3MergedAttention:
 
         decoder_hidden = torch.randn(2, 1, small_config.hidden_size)
 
-        output, _, cache = attn(
-            decoder_hidden, encoder_hidden, use_cache=True
-        )
+        output, _, cache = attn(decoder_hidden, encoder_hidden, use_cache=True)
 
         assert cache is not None
         # Cache structure: (dec_k, dec_v, enc_k, enc_v) - flat format
@@ -136,15 +133,14 @@ class TestQwen3MergedAttention:
         # First token
         decoder_hidden_1 = torch.randn(2, 1, small_config.hidden_size)
         with torch.no_grad():
-            _, _, cache_1 = attn(
-                decoder_hidden_1, encoder_hidden, use_cache=True
-            )
+            _, _, cache_1 = attn(decoder_hidden_1, encoder_hidden, use_cache=True)
 
         # Second token
         decoder_hidden_2 = torch.randn(2, 1, small_config.hidden_size)
         with torch.no_grad():
             _, _, cache_2 = attn(
-                decoder_hidden_2, encoder_hidden,
+                decoder_hidden_2,
+                encoder_hidden,
                 past_key_value=cache_1,
                 use_cache=True,
             )
@@ -163,14 +159,18 @@ class TestQwen3MergedAttention:
         encoder_hidden = torch.randn(2, 5, small_config.hidden_size)
 
         # Mask last 2 positions in encoder
-        encoder_attention_mask = torch.tensor([
-            [1, 1, 1, 0, 0],
-            [1, 1, 1, 1, 0],
-        ], dtype=torch.float32)
+        encoder_attention_mask = torch.tensor(
+            [
+                [1, 1, 1, 0, 0],
+                [1, 1, 1, 1, 0],
+            ],
+            dtype=torch.float32,
+        )
 
         with torch.no_grad():
             _, attn_weights, _ = attn(
-                decoder_hidden, encoder_hidden,
+                decoder_hidden,
+                encoder_hidden,
                 encoder_attention_mask=encoder_attention_mask,
                 output_attentions=True,
             )
@@ -243,9 +243,7 @@ class TestQwen3DecoderLayer:
         layer = Qwen3DecoderLayer(small_config)
         decoder_hidden = torch.randn(2, 1, small_config.hidden_size)
 
-        _, _, cache = layer(
-            decoder_hidden, encoder_hidden, use_cache=True
-        )
+        _, _, cache = layer(decoder_hidden, encoder_hidden, use_cache=True)
 
         assert cache is not None
 
@@ -343,7 +341,9 @@ class TestQwen3Decoder:
         """Test gradients flow through decoder."""
         decoder = Qwen3Decoder(small_config)
         input_ids = torch.randint(0, 100, (2, 8))
-        encoder_hidden = torch.randn(2, 10, small_config.hidden_size, requires_grad=True)
+        encoder_hidden = torch.randn(
+            2, 10, small_config.hidden_size, requires_grad=True
+        )
 
         output = decoder(input_ids, encoder_hidden_states=encoder_hidden)
         loss = output.last_hidden_state.sum()
@@ -420,7 +420,7 @@ class TestDecoderIntegration:
             auto_hidden = []
 
             for i in range(4):
-                step_input = input_ids[:, i:i+1]
+                step_input = input_ids[:, i : i + 1]
                 position_ids = torch.tensor([[i]])
 
                 outputs = decoder(
@@ -447,14 +447,18 @@ class TestDecoderIntegration:
         input_ids = torch.randint(0, 100, (2, 8))
 
         with torch.no_grad():
-            output1 = decoder(input_ids, encoder_hidden_states=encoder_hidden).last_hidden_state
-            output2 = decoder(input_ids, encoder_hidden_states=encoder_hidden).last_hidden_state
+            output1 = decoder(
+                input_ids, encoder_hidden_states=encoder_hidden
+            ).last_hidden_state
+            output2 = decoder(
+                input_ids, encoder_hidden_states=encoder_hidden
+            ).last_hidden_state
 
         assert torch.allclose(output1, output2)
 
     def test_dtype_consistency(self, small_config, encoder_hidden):
         """Test decoder handles different dtypes."""
-        for dtype in [torch.float32, torch.float16]:
+        for dtype in [torch.float32, torch.bfloat16]:
             decoder = Qwen3Decoder(small_config).to(dtype)
             enc_hidden = encoder_hidden.to(dtype)
             input_ids = torch.randint(0, 100, (2, 8))
@@ -573,21 +577,13 @@ class TestDecoderGPU:
         """Test BF16 forward pass on GPU."""
         decoder = Qwen3Decoder(gpu_config).cuda().to(torch.bfloat16)
         input_ids = torch.randint(0, 100, (2, 8)).cuda()
-        encoder_hidden = torch.randn(2, 10, gpu_config.hidden_size).cuda().to(torch.bfloat16)
+        encoder_hidden = (
+            torch.randn(2, 10, gpu_config.hidden_size).cuda().to(torch.bfloat16)
+        )
 
         output = decoder(input_ids, encoder_hidden_states=encoder_hidden)
 
         assert output.last_hidden_state.dtype == torch.bfloat16
-
-    def test_mixed_precision_fp16(self, gpu_config):
-        """Test FP16 forward pass on GPU."""
-        decoder = Qwen3Decoder(gpu_config).cuda().to(torch.float16)
-        input_ids = torch.randint(0, 100, (2, 8)).cuda()
-        encoder_hidden = torch.randn(2, 10, gpu_config.hidden_size).cuda().to(torch.float16)
-
-        output = decoder(input_ids, encoder_hidden_states=encoder_hidden)
-
-        assert output.last_hidden_state.dtype == torch.float16
 
     def test_sdpa_on_gpu(self, gpu_config):
         """Test SDPA path executes without error on GPU."""

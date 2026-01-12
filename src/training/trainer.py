@@ -15,13 +15,12 @@ from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
-from torch.utils.data import DataLoader
-
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from .config import FullConfig
@@ -60,6 +59,7 @@ class Qwen3EncoderDecoderTrainer:
         config: Full training configuration.
         train_dataloader: Training data loader.
         eval_dataloader: Optional evaluation data loader.
+        collator: Optional UL2 data collator for curriculum progress updates.
     """
 
     def __init__(
@@ -69,18 +69,22 @@ class Qwen3EncoderDecoderTrainer:
         config: FullConfig,
         train_dataloader: DataLoader,
         eval_dataloader: Optional[DataLoader] = None,
+        collator: Optional[Any] = None,
     ):
         self.config = config
         self.tokenizer = tokenizer
+        self._collator = collator  # Store for curriculum progress updates
 
         # Enable TF32 for Ampere+ GPUs (up to 3x faster matmuls)
         if getattr(config.training, "use_tf32", True):
             from .optimizations import setup_tf32
+
             setup_tf32()
 
         # Apply Liger kernels before accelerator.prepare()
         if getattr(config.training, "use_liger_kernels", True):
             from .optimizations import apply_liger_kernels
+
             model = apply_liger_kernels(model, model.config)
 
         # Optional torch.compile (10-20% speedup, slower startup)
@@ -101,11 +105,7 @@ class Qwen3EncoderDecoderTrainer:
 
         self.accelerator = Accelerator(
             gradient_accumulation_steps=config.training.gradient_accumulation_steps,
-            mixed_precision=(
-                "bf16"
-                if config.training.bf16
-                else ("fp16" if config.training.fp16 else "no")
-            ),
+            mixed_precision="bf16" if config.training.bf16 else "no",
             log_with=config.training.report_to if config.training.report_to else None,
             project_config=project_config,
         )
@@ -163,6 +163,13 @@ class Qwen3EncoderDecoderTrainer:
             if use_cce:
                 logger.info("Cut Cross Entropy enabled for memory-efficient loss")
 
+    def _update_curriculum_progress(self) -> None:
+        """Update collator progress for curriculum learning."""
+        if self._collator is None or not hasattr(self._collator, "progress"):
+            return
+        progress = self.state.global_step / max(self.config.training.num_train_steps, 1)
+        self._collator.progress = min(1.0, max(0.0, progress))
+
     def _create_optimizer(self, model: nn.Module) -> AdamW:
         """Create optimizer with weight decay separation."""
         # Separate parameters that should/shouldn't have weight decay
@@ -174,11 +181,7 @@ class Qwen3EncoderDecoderTrainer:
                 continue
 
             # No weight decay for biases and LayerNorm/RMSNorm
-            if (
-                "bias" in name
-                or "layernorm" in name.lower()
-                or "norm" in name.lower()
-            ):
+            if "bias" in name or "layernorm" in name.lower() or "norm" in name.lower():
                 no_decay_params.append(param)
             else:
                 decay_params.append(param)
@@ -222,9 +225,8 @@ class Qwen3EncoderDecoderTrainer:
             )
 
         cfg = getattr(model, "config", None)
-        num_heads = (
-            getattr(cfg, "num_attention_heads", None)
-            or getattr(cfg, "num_heads", None)
+        num_heads = getattr(cfg, "num_attention_heads", None) or getattr(
+            cfg, "num_heads", None
         )
         head_dim = getattr(cfg, "head_dim", None)
         if head_dim is None and num_heads and getattr(cfg, "hidden_size", None):
@@ -237,11 +239,7 @@ class Qwen3EncoderDecoderTrainer:
             )
             return
 
-        dtype = torch.float32
-        if self.config.training.bf16:
-            dtype = torch.bfloat16
-        elif self.config.training.fp16:
-            dtype = torch.float16
+        dtype = torch.bfloat16 if self.config.training.bf16 else torch.float32
 
         device = self.accelerator.device
         q = torch.zeros((1, num_heads, 4, head_dim), device=device, dtype=dtype)
@@ -332,6 +330,7 @@ class Qwen3EncoderDecoderTrainer:
                 if wandb_watch and "wandb" in self.config.training.report_to:
                     try:
                         import wandb
+
                         wandb.watch(
                             self.model,
                             log=wandb_watch,
@@ -380,8 +379,12 @@ class Qwen3EncoderDecoderTrainer:
         step_tokens = 0  # Track tokens for throughput calculation
         step_samples = 0  # Track samples for throughput calculation
         import time
+
         last_log_time = time.time()
         last_grad_norm = None
+
+        # Initialize curriculum progress before first batch (important for resume)
+        self._update_curriculum_progress()
 
         # Infinite iterator for streaming datasets
         train_iterator = iter(self.train_dataloader)
@@ -430,6 +433,7 @@ class Qwen3EncoderDecoderTrainer:
             # Update tracking
             if self.accelerator.sync_gradients:
                 self.state.global_step += 1
+                self._update_curriculum_progress()
 
                 progress_bar.update(1)
 
@@ -462,6 +466,12 @@ class Qwen3EncoderDecoderTrainer:
                                 "train/grad_norm": (
                                     float(last_grad_norm)
                                     if last_grad_norm is not None
+                                    else None
+                                ),
+                                "train/curriculum_progress": (
+                                    self._collator.progress
+                                    if self._collator
+                                    and hasattr(self._collator, "progress")
                                     else None
                                 ),
                             },
@@ -593,7 +603,9 @@ class Qwen3EncoderDecoderTrainer:
                 self.checkpoint_paths.append(output_dir)
 
                 # Keep only last N checkpoints
-                while len(self.checkpoint_paths) > self.config.training.save_total_limit:
+                while (
+                    len(self.checkpoint_paths) > self.config.training.save_total_limit
+                ):
                     old_path = self.checkpoint_paths.pop(0)
                     if old_path.exists():
                         shutil.rmtree(old_path)
@@ -617,12 +629,8 @@ class Qwen3EncoderDecoderTrainer:
 
         def _load_state_dict(path: Path) -> Optional[Dict[str, torch.Tensor]]:
             if path.suffix == ".safetensors":
-                try:
-                    from safetensors.torch import load_file
-                except ImportError as exc:
-                    raise RuntimeError(
-                        "safetensors is required to load .safetensors checkpoints."
-                    ) from exc
+                from safetensors.torch import load_file
+
                 return load_file(str(path))
             return torch.load(path, map_location="cpu")
 
@@ -667,18 +675,9 @@ class Qwen3EncoderDecoderTrainer:
         output_dir = Path(self.config.infra.output_dir) / "checkpoint-averaged"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        saved = False
-        try:
-            from safetensors.torch import save_file
-        except ImportError:
-            save_file = None
+        from safetensors.torch import save_file
 
-        if save_file is not None:
-            save_file(avg_state, str(output_dir / "model.safetensors"))
-            saved = True
-
-        if not saved:
-            torch.save(avg_state, output_dir / "pytorch_model.bin")
+        save_file(avg_state, str(output_dir / "model.safetensors"))
 
         # Copy config and tokenizer from last checkpoint
         last_ckpt = checkpoints_to_average[-1]

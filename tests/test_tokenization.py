@@ -362,7 +362,8 @@ class TestTokenizerSaveLoad:
                 json.dump({"num_sentinel_tokens": 75}, f)
 
             tokenizer = Qwen3EncoderDecoderTokenizer.from_pretrained(
-                tmpdir, num_sentinel_tokens=100  # Should be overridden
+                tmpdir,
+                num_sentinel_tokens=100,  # Should be overridden
             )
 
             # Should use config from file, not the argument

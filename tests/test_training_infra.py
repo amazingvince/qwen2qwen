@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 import torch
 
 from src.training import (
@@ -17,7 +16,6 @@ from src.training import (
     estimate_model_memory,
     get_memory_stats,
 )
-
 
 # =============================================================================
 # Test Configurations
@@ -64,12 +62,6 @@ class TestDataConfig:
         assert config.max_encoder_length == 4096
         assert config.max_decoder_length == 2048
 
-    def test_ul2_weights(self):
-        """Test UL2 task weights are T5Gemma 2 defaults."""
-        config = DataConfig()
-
-        assert config.ul2_task_weights == [1, 1, 1, 1, 4]
-
 
 class TestTrainingConfig:
     """Tests for TrainingConfig."""
@@ -81,7 +73,6 @@ class TestTrainingConfig:
         assert config.learning_rate == 2e-4
         assert config.max_grad_norm == 1.0
         assert config.bf16 is True
-        assert config.fp16 is False
         assert config.warmup_steps == 1000
 
     def test_effective_batch_size(self):
@@ -282,6 +273,7 @@ class TestOptimizerParamGroups:
 
     def test_separate_decay_params(self):
         """Test that bias and norm params are separated."""
+
         # Create model with named modules (like real transformer)
         class SimpleModel(torch.nn.Module):
             def __init__(self):
@@ -344,6 +336,7 @@ class TestScheduler:
 
         # Step through warmup
         for _ in range(100):
+            optimizer.step()
             warmup_scheduler.step()
 
         # Should be at full LR

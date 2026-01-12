@@ -6,11 +6,9 @@ extraction pipeline from a trained encoder-decoder checkpoint.
 
 from __future__ import annotations
 
-import json
 import logging
-import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import torch
 from transformers import AutoTokenizer
@@ -56,9 +54,6 @@ class EncoderExtractor:
     def load_encoder_decoder(self) -> Any:
         """Load the trained encoder-decoder model."""
         # Import here to avoid circular imports
-        import sys
-
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
         from qwen3_encdec import Qwen3ForSeq2SeqLM
 
         logger.info(f"Loading encoder-decoder from {self.checkpoint_path}")
@@ -166,7 +161,9 @@ class EncoderExtractor:
             )
 
         # Compare hidden states
-        diff = (enc_dec_output.last_hidden_state - encoder_output.last_hidden_state).abs()
+        diff = (
+            enc_dec_output.last_hidden_state - encoder_output.last_hidden_state
+        ).abs()
         max_diff = diff.max().item()
 
         logger.info(f"Max difference in hidden states: {max_diff:.2e}")
@@ -203,7 +200,7 @@ class EncoderExtractor:
         training_tokens: str = "500B-2T",
     ) -> str:
         """Create model card markdown."""
-        return f'''---
+        return f"""---
 language:
 - en
 - zh
@@ -335,7 +332,7 @@ If you use this model, please cite:
 - Maximum sequence length: 8192 tokens (can be extended with careful handling)
 - Primarily trained on English and Chinese data
 - May not perform well on very domain-specific tasks without fine-tuning
-'''
+"""
 
     def save_model_card(self) -> None:
         """Save model card to output directory."""

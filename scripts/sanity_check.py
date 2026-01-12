@@ -12,11 +12,7 @@ Usage:
 import argparse
 import logging
 import sys
-from pathlib import Path
 from typing import Any, Dict
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import torch
 
@@ -253,9 +249,7 @@ def run_sanity_check(model_path: str, device: str = "cuda") -> Dict[str, Any]:
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Run sanity checks on a trained model"
-    )
+    parser = argparse.ArgumentParser(description="Run sanity checks on a trained model")
     parser.add_argument(
         "--model-path",
         type=str,
