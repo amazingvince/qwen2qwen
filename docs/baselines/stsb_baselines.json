@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-01-12T12:21:37.040587",
+  "device": "cuda",
+  "batch_size": 32,
+  "models": {
+    "Qwen3-Embedding-0.6B": {
+      "model_id": "Qwen/Qwen3-Embedding-0.6B",
+      "params": "600M",
+      "results": {
+        "stsb": {
+          "spearman": 0.8460119423460026,
+          "pearson": 0.8425680932566153,
+          "num_samples": 1379
+        }
+      }
+    },
+    "Ettin-Encoder-1B": {
+      "model_id": "jhu-clsp/ettin-encoder-1b",
+      "params": "1B",
+      "results": {
+        "stsb": {
+          "spearman": 0.5850938413134049,
+          "pearson": 0.4564944101757457,
+          "num_samples": 1379
+        }
+      }
+    },
+    "Ettin-Encoder-400M": {
+      "model_id": "jhu-clsp/ettin-encoder-400m",
+      "params": "400M",
+      "results": {
+        "stsb": {
+          "spearman": 0.4254497731702776,
+          "pearson": 0.35601126388950516,
+          "num_samples": 1379
+        }
+      }
+    },
+    "RoBERTa-base": {
+      "model_id": "FacebookAI/roberta-base",
+      "params": "125M",
+      "results": {
+        "stsb": {
+          "spearman": 0.543554687902132,
+          "pearson": 0.5237124379883243,
+          "num_samples": 1379
+        }
+      }
+    },
+    "E5-base-v2": {
+      "model_id": "intfloat/e5-base-v2",
+      "params": "109M",
+      "results": {
+        "stsb": {
+          "spearman": 0.8547987796361314,
+          "pearson": 0.8493087959195041,
+          "num_samples": 1379
+        }
+      }
+    },
+    "all-MiniLM-L6-v2": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "params": "22M",
+      "results": {
+        "stsb": {
+          "spearman": 0.8203246731235654,
+          "pearson": 0.8274064259989555,
+          "num_samples": 1379
+        }
+      }
+    }
+  }
+}
